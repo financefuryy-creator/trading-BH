@@ -8,7 +8,7 @@ The bot will:
 2. Compute Bollinger Bands and Heikin Ashi candles.
 3. Identify buy and sell signals based on the provided strategy.
 4. Notify signals via Telegram bot messages.
-5. Run from 9:00 AM to 10:00 PM IST every hour.
+5. **Execute at 30 minutes past every hour from 9:30 AM to 10:30 PM IST** (14 executions per day).
 6. Provide a backtesting feature for validating the strategy.
 
 ## Installation
@@ -23,6 +23,21 @@ The bot will:
    ```bash
    python main.py
    ```
+
+## Execution Schedule
+
+The bot executes automatically at **30 minutes past every hour** from **9:30 AM to 10:30 PM IST**:
+
+```
+9:30 AM, 10:30 AM, 11:30 AM, 12:30 PM, 1:30 PM, 2:30 PM, 3:30 PM,
+4:30 PM, 5:30 PM, 6:30 PM, 7:30 PM, 8:30 PM, 9:30 PM, 10:30 PM
+```
+
+- **Total executions:** 14 times per day
+- **Timezone:** IST (India Standard Time, UTC+5:30)
+- **Pattern:** Every hour at :30 minutes
+
+The bot uses the `schedule` library with proper IST timezone handling to ensure accurate execution times.
 
 ## How It Works
 
@@ -58,7 +73,7 @@ The strategy uses:
 - Identify Buy/Sell signals accurately as per strategy.
 - Notify signals via Telegram.
 - Create a backtesting utility.
-- Deploy locally to run every hour between 9AM-10PM IST.
+- **Deploy locally to run at :30 of every hour from 9:30 AM to 10:30 PM IST** (14 times daily).
 
 ## Configuration
 You need to set up your API key, secret key, and Telegram bot token in the `config.py` file.
