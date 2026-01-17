@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 class BinanceTradingBot:
     """Trading bot for detecting BB + Heikin-Ashi signals on Binance"""
     
+    # Configuration constants
+    MIN_BODY_PERCENTAGE = 30  # Minimum body size as percentage of candle range for signal confirmation
+    RATE_LIMIT_DELAY = 0.1    # Delay between API calls in seconds
+    
     def __init__(self):
         """Initialize the trading bot"""
         self.exchange = ccxt.binance({
@@ -105,7 +109,7 @@ class BinanceTradingBot:
         # Calculate body size as percentage of candle range
         ha_range = ha_df['ha_high'] - ha_df['ha_low']
         ha_body = abs(ha_df['ha_close'] - ha_df['ha_open'])
-        # Avoid division by zero
+        # Avoid division by zero - 0% body when range is zero (doji candle)
         ha_df['ha_body_pct'] = np.where(ha_range > 0, ha_body / ha_range * 100, 0)
         
         return ha_df
@@ -147,9 +151,9 @@ class BinanceTradingBot:
                     min(prev_candle['ha_open'], prev_candle['ha_close']) <= prev_candle['bb_lower']
                 )
                 
-                # Check if current candle is green (bullish) with at least 30% body
+                # Check if current candle is green (bullish) with at least minimum body size
                 curr_is_green = curr_candle['ha_color']
-                curr_body_ok = curr_candle['ha_body_pct'] >= 30
+                curr_body_ok = curr_candle['ha_body_pct'] >= self.MIN_BODY_PERCENTAGE
                 
                 # Buy signal conditions
                 if prev_is_red and prev_touches_lower_bb and curr_is_green and curr_body_ok:
@@ -188,9 +192,9 @@ class BinanceTradingBot:
                     max(prev_candle['ha_open'], prev_candle['ha_close']) >= prev_candle['bb_upper']
                 )
                 
-                # Check if current candle is red (bearish) with at least 30% body
+                # Check if current candle is red (bearish) with at least minimum body size
                 curr_is_red = not curr_candle['ha_color']
-                curr_body_ok = curr_candle['ha_body_pct'] >= 30
+                curr_body_ok = curr_candle['ha_body_pct'] >= self.MIN_BODY_PERCENTAGE
                 
                 # Sell signal conditions
                 if prev_is_green and prev_touches_upper_bb and curr_is_red and curr_body_ok:
@@ -231,7 +235,7 @@ class BinanceTradingBot:
                     logger.info(f"SELL signal detected for {symbol}")
                 
                 # Small delay to respect rate limits
-                time.sleep(0.1)
+                time.sleep(self.RATE_LIMIT_DELAY)
                 
             except Exception as e:
                 logger.error(f"Error scanning {symbol}: {e}")
@@ -335,6 +339,8 @@ def scheduled_task():
 
 def main():
     """Main function to run the bot"""
+    SCHEDULER_CHECK_INTERVAL = 30  # Check schedule every 30 seconds
+    
     logger.info("Binance Trading Bot starting...")
     logger.info("Schedule: Every hour at XX:22 between 9:22 AM and 10:22 PM IST")
     
@@ -350,7 +356,7 @@ def main():
     logger.info("Bot is now running. Press Ctrl+C to stop.")
     while True:
         schedule.run_pending()
-        time.sleep(30)  # Check every 30 seconds
+        time.sleep(SCHEDULER_CHECK_INTERVAL)
 
 
 if __name__ == "__main__":

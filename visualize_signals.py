@@ -18,6 +18,9 @@ import tempfile
 class SignalVisualizer:
     """Visualize trading signals with HA candles and BB"""
     
+    # Configuration constant (should match main.py)
+    MIN_BODY_PERCENTAGE = 30  # Minimum body size as percentage of candle range for signal confirmation
+    
     def __init__(self):
         self.exchange = ccxt.binance({
             'enableRateLimit': True,
@@ -135,7 +138,7 @@ class SignalVisualizer:
             prev_touches_lower = (prev_candle['ha_low'] <= prev_candle['bb_lower'] or
                                  min(prev_candle['ha_open'], prev_candle['ha_close']) <= prev_candle['bb_lower'])
             curr_is_green = curr_candle['ha_color']
-            curr_body_ok_buy = curr_candle['ha_body_pct'] >= 30
+            curr_body_ok_buy = curr_candle['ha_body_pct'] >= self.MIN_BODY_PERCENTAGE
             
             if prev_is_red and prev_touches_lower and curr_is_green and curr_body_ok_buy:
                 buy_signals.append(i)
@@ -145,7 +148,7 @@ class SignalVisualizer:
             prev_touches_upper = (prev_candle['ha_high'] >= prev_candle['bb_upper'] or
                                  max(prev_candle['ha_open'], prev_candle['ha_close']) >= prev_candle['bb_upper'])
             curr_is_red = not curr_candle['ha_color']
-            curr_body_ok_sell = curr_candle['ha_body_pct'] >= 30
+            curr_body_ok_sell = curr_candle['ha_body_pct'] >= self.MIN_BODY_PERCENTAGE
             
             if prev_is_green and prev_touches_upper and curr_is_red and curr_body_ok_sell:
                 sell_signals.append(i)

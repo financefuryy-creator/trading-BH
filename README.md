@@ -72,6 +72,8 @@ This will generate charts showing Heikin-Ashi candles, Bollinger Bands, and dete
 ## Configuration
 Telegram bot credentials are configured in the `config.py` file. The bot uses Binance public API which doesn't require API keys for fetching market data.
 
+**Security Note**: In production, it's recommended to move sensitive credentials (Telegram tokens) to environment variables instead of committing them to the repository.
+
 ## Disclaimer
 This system is for educational purposes only and should not be considered as financial advice. Cryptocurrency trading is highly volatile and carries a high level of risk. Trade responsibly.
 
