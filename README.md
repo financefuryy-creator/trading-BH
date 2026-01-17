@@ -18,8 +18,18 @@ The bot will:
    ```bash
    pip install -r requirements.txt
    ```
-3. Configure the API keys and settings in `config.py`.
-4. Run the bot:
+3. Configure the API keys and settings in `config.py`:
+   ```python
+   # Optional: Binance API credentials (only needed for private endpoints)
+   BINANCE_API_KEY = 'your_api_key_here'
+   BINANCE_SECRET_KEY = 'your_secret_key_here'
+   
+   # Required: Telegram bot credentials (for notifications)
+   TELEGRAM_BOT_TOKEN = 'your_telegram_bot_token_here'
+   TELEGRAM_CHAT_ID = 'your_chat_id_here'
+   ```
+4. Update `pairs.csv` with your desired trading pairs (one per line, e.g., `BTC/USDT`)
+5. Run the bot:
    ```bash
    python main.py
    ```
@@ -53,22 +63,48 @@ The strategy uses:
       - List of coin names.
 
 ## Development Plan
-- Fetch Data from CoinDCX API.
-- Compute BB and HA indicators with 100% accuracy.
-- Identify Buy/Sell signals accurately as per strategy.
-- Notify signals via Telegram.
-- Create a backtesting utility.
-- Deploy locally to run every hour between 9AM-10PM IST.
+- [x] Fetch Data from Binance API (using CCXT library)
+- [x] Compute BB and HA indicators with 100% accuracy
+- [x] Identify Buy/Sell signals accurately as per strategy
+- [x] Notify signals via Telegram
+- [x] Deploy locally to run every hour between 9AM-10PM IST
+- [ ] Create a backtesting utility (future enhancement)
 
 ## Configuration
-You need to set up your API key, secret key, and Telegram bot token in the `config.py` file.
+You need to set up your Telegram bot token in the `config.py` file. Binance API credentials are optional (only needed for private endpoints; public market data works without authentication).
 
 ```python
-COINDCX_API_KEY = "your_coindcx_api_key_here"
-COINDCX_SECRET_KEY = "your_coindcx_secret_key_here"
-TELEGRAM_BOT_TOKEN = "your_telegram_bot_token_here"
-TELEGRAM_CHAT_ID = "your_chat_id_here"
+# Optional: Binance API credentials
+BINANCE_API_KEY = ''
+BINANCE_SECRET_KEY = ''
+
+# Required: Telegram bot credentials
+TELEGRAM_BOT_TOKEN = 'your_telegram_bot_token_here'
+TELEGRAM_CHAT_ID = 'your_chat_id_here'
 ```
+
+### Getting Telegram Credentials
+
+1. Create a bot by chatting with [@BotFather](https://t.me/botfather) on Telegram
+2. Use `/newbot` command and follow the instructions
+3. Copy the bot token provided by BotFather
+4. Get your chat ID by sending a message to your bot and visiting:
+   `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+
+## Usage
+
+Simply run:
+```bash
+python main.py
+```
+
+The bot will:
+- Load trading pairs from `pairs.csv`
+- Fetch hourly OHLCV data from Binance
+- Calculate Bollinger Bands and Heikin Ashi indicators
+- Identify buy/sell signals based on the strategy
+- Send notifications via Telegram
+- Run automatically every hour between 9 AM - 10 PM IST
 
 ## Disclaimer
 This system is for educational purposes only and should not be considered as financial advice. Cryptocurrency trading is highly volatile and carries a high level of risk. Trade responsibly.
