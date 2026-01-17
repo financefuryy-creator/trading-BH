@@ -26,6 +26,7 @@ class SignalTester:
         Returns:
             DataFrame with mock OHLCV data
         """
+        # Set seed for reproducible test data
         np.random.seed(42)
         
         # Generate mock data with realistic price movements

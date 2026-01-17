@@ -6,7 +6,7 @@ Tests the strategy on historical data to validate signal accuracy.
 
 import pandas as pd
 from datetime import datetime, timedelta
-from main import TradingBot
+from main import TradingBot, BB_PERIOD
 import pytz
 
 
@@ -35,7 +35,7 @@ class Backtester:
         limit = days * 24  # 1-hour candles
         df = self.bot.fetch_ohlcv(symbol, limit=limit)
         
-        if df is None or len(df) < self.bot.BB_PERIOD + 2:
+        if df is None or len(df) < BB_PERIOD + 2:
             print(f"Insufficient data for {symbol}")
             return None
         
@@ -46,7 +46,7 @@ class Backtester:
         signals = []
         
         # Scan through historical data
-        for i in range(self.bot.BB_PERIOD + 1, len(df)):
+        for i in range(BB_PERIOD + 1, len(df)):
             # Create a slice up to current index
             df_slice = df.iloc[:i+1].copy()
             df_slice = df_slice.reset_index(drop=True)

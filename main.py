@@ -28,6 +28,9 @@ class TradingBot:
     
     def __init__(self):
         """Initialize the trading bot with Binance exchange and Telegram bots."""
+        # Initialize Binance exchange (using public endpoints, no authentication required)
+        # Public endpoints are sufficient for fetching OHLCV data
+        # If authenticated endpoints are needed in the future, add API keys to config.py
         self.exchange = ccxt.binance({
             'enableRateLimit': True,
             'options': {
