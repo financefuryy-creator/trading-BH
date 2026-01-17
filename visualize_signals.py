@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from datetime import datetime
 import sys
+import os
+import tempfile
 
 
 class SignalVisualizer:
@@ -56,7 +58,8 @@ class SignalVisualizer:
         
         ha_range = ha_df['ha_high'] - ha_df['ha_low']
         ha_body = abs(ha_df['ha_close'] - ha_df['ha_open'])
-        ha_df['ha_body_pct'] = (ha_body / ha_range * 100).fillna(0)
+        # Avoid division by zero
+        ha_df['ha_body_pct'] = np.where(ha_range > 0, ha_body / ha_range * 100, 0)
         
         return ha_df
     
@@ -132,9 +135,9 @@ class SignalVisualizer:
             prev_touches_lower = (prev_candle['ha_low'] <= prev_candle['bb_lower'] or
                                  min(prev_candle['ha_open'], prev_candle['ha_close']) <= prev_candle['bb_lower'])
             curr_is_green = curr_candle['ha_color']
-            curr_body_ok = curr_candle['ha_body_pct'] >= 30
+            curr_body_ok_buy = curr_candle['ha_body_pct'] >= 30
             
-            if prev_is_red and prev_touches_lower and curr_is_green and curr_body_ok:
+            if prev_is_red and prev_touches_lower and curr_is_green and curr_body_ok_buy:
                 buy_signals.append(i)
             
             # Sell signal
@@ -142,8 +145,9 @@ class SignalVisualizer:
             prev_touches_upper = (prev_candle['ha_high'] >= prev_candle['bb_upper'] or
                                  max(prev_candle['ha_open'], prev_candle['ha_close']) >= prev_candle['bb_upper'])
             curr_is_red = not curr_candle['ha_color']
+            curr_body_ok_sell = curr_candle['ha_body_pct'] >= 30
             
-            if prev_is_green and prev_touches_upper and curr_is_red and curr_body_ok:
+            if prev_is_green and prev_touches_upper and curr_is_red and curr_body_ok_sell:
                 sell_signals.append(i)
         
         # Mark buy signals
@@ -168,7 +172,9 @@ class SignalVisualizer:
         
         # Save figure
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'/tmp/chart_{symbol.replace("/", "_")}_{timestamp}.png'
+        # Use cross-platform temp directory
+        temp_dir = tempfile.gettempdir()
+        filename = os.path.join(temp_dir, f'chart_{symbol.replace("/", "_")}_{timestamp}.png')
         plt.tight_layout()
         plt.savefig(filename, dpi=150, bbox_inches='tight')
         print(f"Chart saved to: {filename}")

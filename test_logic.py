@@ -7,9 +7,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import sys
+import os
 
-# Import bot components
-sys.path.insert(0, '/home/runner/work/trading-BH/trading-BH')
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from main import BinanceTradingBot
 
 

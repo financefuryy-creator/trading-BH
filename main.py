@@ -105,7 +105,8 @@ class BinanceTradingBot:
         # Calculate body size as percentage of candle range
         ha_range = ha_df['ha_high'] - ha_df['ha_low']
         ha_body = abs(ha_df['ha_close'] - ha_df['ha_open'])
-        ha_df['ha_body_pct'] = (ha_body / ha_range * 100).fillna(0)
+        # Avoid division by zero
+        ha_df['ha_body_pct'] = np.where(ha_range > 0, ha_body / ha_range * 100, 0)
         
         return ha_df
     
@@ -128,10 +129,10 @@ class BinanceTradingBot:
             return False
         
         # Look at last 3 candles
-        for i in range(-3, 0):
+        for i in range(-3, -1):  # Check indices -3,-2 (comparing with -2,-1)
             try:
                 prev_idx = ha_df.index[i]
-                curr_idx = ha_df.index[i+1] if i+1 < 0 else ha_df.index[-1]
+                curr_idx = ha_df.index[i+1]
                 
                 prev_candle = ha_df.loc[prev_idx]
                 curr_candle = ha_df.loc[curr_idx]
@@ -169,10 +170,10 @@ class BinanceTradingBot:
             return False
         
         # Look at last 3 candles
-        for i in range(-3, 0):
+        for i in range(-3, -1):  # Check indices -3,-2 (comparing with -2,-1)
             try:
                 prev_idx = ha_df.index[i]
-                curr_idx = ha_df.index[i+1] if i+1 < 0 else ha_df.index[-1]
+                curr_idx = ha_df.index[i+1]
                 
                 prev_candle = ha_df.loc[prev_idx]
                 curr_candle = ha_df.loc[curr_idx]
