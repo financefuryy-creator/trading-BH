@@ -36,11 +36,29 @@ class TradingBot:
         logger.info(f"Trading bot initialized with {len(self.pairs)} pairs")
     
     def load_pairs(self):
-        """Load trading pairs from pairs.csv"""
+        """
+        Load trading pairs from pairs.csv
+        
+        NOTE: The pairs.csv file should contain one trading pair per line.
+        Example format:
+            BTCUSDT
+            ETHUSDT
+            BNBUSDT
+        
+        Ensure the file contains valid trading pair symbols supported by CoinDCX.
+        """
         try:
             with open('pairs.csv', 'r') as f:
                 pairs = [line.strip() for line in f.readlines() if line.strip()]
-            return pairs
+            
+            # Filter out invalid entries (like file references or comments)
+            valid_pairs = [p for p in pairs if not p.endswith('.csv') and not p.startswith('#')]
+            
+            if not valid_pairs:
+                logger.warning("No valid trading pairs found in pairs.csv!")
+                logger.warning("Please add trading pair symbols (e.g., BTCUSDT, ETHUSDT) to pairs.csv")
+            
+            return valid_pairs
         except Exception as e:
             logger.error(f"Error loading pairs: {e}")
             return []
@@ -378,15 +396,9 @@ def get_next_run_time():
     """Get the next scheduled run time in IST"""
     next_run = schedule.next_run()
     if next_run:
-        # Ensure next_run is timezone-aware and convert to IST
-        # schedule.next_run() returns a naive datetime in local time
-        # We need to make it timezone-aware before converting
-        if next_run.tzinfo is None:
-            # Assume it's in the system's local timezone
-            local_tz = pytz.timezone('UTC')
-            next_run = local_tz.localize(next_run)
-        next_run_ist = next_run.astimezone(IST)
-        return next_run_ist
+        # schedule.next_run() returns a naive datetime
+        # Simply format it directly as it's already in the intended schedule time
+        return next_run
     return None
 
 
@@ -403,11 +415,7 @@ def main():
     # Display next run time
     next_run = get_next_run_time()
     if next_run:
-        logger.info(f"Next scheduled run: {next_run.strftime('%Y-%m-%d %H:%M:%S IST')}")
-    
-    # Run immediately for testing (optional - comment out in production)
-    # logger.info("Running immediate test analysis...")
-    # bot.run_analysis()
+        logger.info(f"Next scheduled run: {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
     
     # Keep the script running
     logger.info("Bot is now running. Press Ctrl+C to stop.")

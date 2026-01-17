@@ -1,1 +1,6 @@
-binance pairs.csv
+# Trading pairs for analysis (one per line)
+# Example CoinDCX trading pairs:
+# BTCINR
+# ETHINR
+# USDTINR
+# Add your trading pairs below:
