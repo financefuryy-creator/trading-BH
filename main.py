@@ -10,6 +10,7 @@ import numpy as np
 import schedule
 import time
 import logging
+import os
 from datetime import datetime, timedelta
 import pytz
 from telegram import Bot
@@ -32,20 +33,30 @@ exchange = ccxt.binance({
 # IST timezone
 IST = pytz.timezone('Asia/Kolkata')
 
+# Set environment timezone to IST for schedule library
+os.environ['TZ'] = 'Asia/Kolkata'
+try:
+    time.tzset()  # Available on Unix-like systems
+except AttributeError:
+    logger.warning("time.tzset() not available on this system. Ensure system timezone is set to IST.")
+
 def load_pairs():
     """Load trading pairs from CSV file"""
     try:
-        with open('binance pairs.csv', 'r') as f:
+        # Try with the actual filename (with space)
+        pairs_file = 'binance pairs.csv'
+        with open(pairs_file, 'r') as f:
             content = f.read().strip()
-            # If the file just references another file, try that
-            if content == 'binance pairs.csv':
-                logger.warning("pairs.csv references itself, using default pairs")
+            # If the file just references itself, use defaults
+            if content == 'binance pairs.csv' or content == '':
+                logger.warning("pairs file is empty or self-referencing, using default pairs")
                 return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
             
             pairs = [line.strip() for line in content.split('\n') if line.strip() and not line.startswith('#')]
             if not pairs:
                 logger.warning("No pairs found in file, using defaults")
                 return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
+            logger.info(f"Loaded {len(pairs)} pairs from {pairs_file}")
             return pairs
     except FileNotFoundError:
         logger.warning("binance pairs.csv not found, using default pairs")
@@ -312,8 +323,11 @@ def schedule_bot():
     """
     Schedule bot to run at specific IST times every day:
     9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM
+    
+    The environment timezone is set to IST at module import to ensure
+    the schedule library interprets times correctly.
     """
-    # Define execution times in IST
+    # Define execution times in IST (24-hour format)
     execution_times = [
         "09:30",  # 9:30 AM
         "11:30",  # 11:30 AM
@@ -329,6 +343,9 @@ def schedule_bot():
         schedule.every().day.at(exec_time).do(run_bot)
         logger.info(f"Scheduled bot execution at {exec_time} IST")
     
+    # Log current timezone for verification
+    current_time = datetime.now(IST)
+    logger.info(f"Current IST time: {current_time.strftime('%Y-%m-%d %I:%M %p IST')}")
     logger.info("Bot scheduler initialized. Waiting for scheduled times...")
     logger.info("Execution schedule: Every 2 hours at 9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM IST")
 
@@ -340,7 +357,7 @@ def main():
     logger.info("Schedule: Every 2 hours at specific IST times")
     logger.info("=" * 60)
     
-    # Run once immediately for testing
+    # Run once immediately for initial testing/verification
     logger.info("Running initial scan...")
     run_bot()
     
@@ -353,7 +370,8 @@ def main():
             # Calculate next run time
             next_run = schedule.next_run()
             if next_run:
-                ist_next = next_run.astimezone(IST)
+                # Convert to IST for display
+                ist_next = next_run.astimezone(IST) if hasattr(next_run, 'astimezone') else datetime.now(IST) + timedelta(hours=1)
                 logger.info(f"Next scheduled run: {ist_next.strftime('%Y-%m-%d %I:%M %p IST')}")
             
             # Run pending scheduled tasks
