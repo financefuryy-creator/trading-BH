@@ -4,3 +4,5 @@ pandas
 numpy
 schedule
 python-telegram-bot
+pytz
+requests
