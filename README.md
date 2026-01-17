@@ -4,12 +4,12 @@ This repository contains the code for creating a crypto futures trading bot that
 
 The bot will:
 
-1. Fetch OHLC data from the CoinDCX API for specific trading pairs defined in the `pairs.csv` file.
+1. Fetch OHLC data from the Binance API for specific trading pairs defined in the `binance pairs.csv` file.
 2. Compute Bollinger Bands and Heikin Ashi candles.
 3. Identify buy and sell signals based on the provided strategy.
 4. Notify signals via Telegram bot messages.
-5. Run from 9:00 AM to 10:00 PM IST every hour.
-6. Provide a backtesting feature for validating the strategy.
+5. Run at 22 minutes past each hour (XX:22) from 9:22 AM to 10:22 PM IST.
+6. Provide visualization tools for validating signal accuracy.
 
 ## Installation
 
@@ -60,15 +60,17 @@ The strategy uses:
 - Create a backtesting utility.
 - Deploy locally to run every hour between 9AM-10PM IST.
 
-## Configuration
-You need to set up your API key, secret key, and Telegram bot token in the `config.py` file.
+## Visualization
 
-```python
-COINDCX_API_KEY = "your_coindcx_api_key_here"
-COINDCX_SECRET_KEY = "your_coindcx_secret_key_here"
-TELEGRAM_BOT_TOKEN = "your_telegram_bot_token_here"
-TELEGRAM_CHAT_ID = "your_chat_id_here"
+To validate signal accuracy visually, run:
+```bash
+python visualize_signals.py BTC/USDT
 ```
+
+This will generate charts showing Heikin-Ashi candles, Bollinger Bands, and detected signals for manual validation.
+
+## Configuration
+Telegram bot credentials are configured in the `config.py` file. The bot uses Binance public API which doesn't require API keys for fetching market data.
 
 ## Disclaimer
 This system is for educational purposes only and should not be considered as financial advice. Cryptocurrency trading is highly volatile and carries a high level of risk. Trade responsibly.

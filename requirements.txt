@@ -1,6 +1,7 @@
-ta-lib
 ccxt
 pandas
 numpy
 schedule
-python-telegram-bot
+requests
+pytz
+matplotlib
