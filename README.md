@@ -1,6 +1,6 @@
 # Trading BH Bot
 
-This repository contains the code for creating a crypto futures trading bot that scans for setups based on Bollinger Band (BB) and Heikin Ashi (HA) indicators on the 1-hour timeframe.
+This repository contains the code for a Binance crypto futures trading bot that scans for setups based on Bollinger Band (BB) and Heikin Ashi (HA) indicators on the 1-hour timeframe.
 
 The bot will:
 
@@ -13,16 +13,49 @@ The bot will:
 
 ## Installation
 
-1. Clone the repository.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/financefuryy-creator/trading-BH.git
+   cd trading-BH
+   ```
+
 2. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-3. Configure the API keys and settings in `config.py`.
-4. Run the bot:
-   ```bash
-   python main.py
-   ```
+
+3. Configure Telegram credentials in `config.py` (already set up).
+
+4. Add trading pairs to `binance pairs.csv` (one per line in format: SYMBOL/USDT).
+
+## Usage
+
+### Running the Bot
+
+**Single Scan (Testing):**
+```bash
+python main.py
+```
+
+**Continuous Operation (Production):**
+Edit `main.py` and uncomment `bot.run_continuously()` in the main function, then:
+```bash
+python main.py
+```
+
+### Backtesting
+
+Test the strategy on historical data:
+```bash
+python backtest.py
+```
+
+### Testing Signal Logic
+
+Verify signal generation logic with unit tests:
+```bash
+python test_signals.py
+```
 
 ## How It Works
 
@@ -34,31 +67,46 @@ The strategy uses:
 - **Heikin Ashi Candles**:
   - Calculated dynamically using OHLC data for accurate results.
 
-### Signal Generation Logic
+### Signal Generation Logic (Strict Implementation)
 
-#### Buy Signal:
-- Look at the latest 2-3 candles.
-- If the red HA candle (downward candle) touches or crosses the lower Bollinger Band on its body or wick, and the next candle is green (upward HA candle) with 30% body size, a buy signal is generated.
+#### Buy Signal Requirements (ALL must be met):
+1. **Previous Candle**: Red Heikin Ashi candle (HA_Close < HA_Open)
+2. **BB Touch**: Previous candle's body or wick touches or breaks the lower Bollinger Band
+3. **Current Candle**: Green Heikin Ashi candle (HA_Close > HA_Open)
+4. **Body Size**: Current candle has at least 30% body size
+   - Body Size % = (|HA_Close - HA_Open| / (HA_High - HA_Low)) × 100
+   - Must be ≥ 30%
 
-#### Sell Signal:
-- Look at the latest 2-3 candles.
-- If the green HA candle (upward candle) touches or crosses the upper Bollinger Band on its body or wick, and the next candle is red (downward HA candle) with 30% body size, a sell signal is generated.
+#### Sell Signal Requirements (ALL must be met):
+1. **Previous Candle**: Green Heikin Ashi candle (HA_Close > HA_Open)
+2. **BB Touch**: Previous candle's body or wick touches or breaks the upper Bollinger Band
+3. **Current Candle**: Red Heikin Ashi candle (HA_Close < HA_Open)
+4. **Body Size**: Current candle has at least 30% body size
+   - Body Size % = (|HA_Close - HA_Open| / (HA_High - HA_Low)) × 100
+   - Must be ≥ 30%
+
+#### Key Implementation Details:
+- **Heikin Ashi Calculation**: Uses proper HA formula for accurate candle representation
+- **BB Touch Detection**: Checks both candle body (close) and wick (high/low) for BB interaction
+- **Body Size Verification**: Ensures meaningful reversal candles (not just small movements)
+- **Error Handling**: Robust error handling for API failures and data issues
 
 ### Telegram Notifications
-- Signals are sent every hour in the format:
-  - **1Hr BH**:
-    - BUY:
-      - List of coin names.
-    - SELL:
-      - List of coin names.
 
-## Development Plan
-- Fetch Data from CoinDCX API.
-- Compute BB and HA indicators with 100% accuracy.
-- Identify Buy/Sell signals accurately as per strategy.
-- Notify signals via Telegram.
-- Create a backtesting utility.
-- Deploy locally to run every hour between 9AM-10PM IST.
+Signals are sent every hour to both configured Telegram bots in the format:
+
+```
+*1Hr BH*
+
+*BUY:*
+  • DUSK
+  • ARB
+
+*SELL:*
+  • CFX
+
+_Scanned at 2026-01-17 15:00:00 IST_
+```
 
 ## Visualization
 
