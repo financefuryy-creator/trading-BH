@@ -1,389 +1,514 @@
 #!/usr/bin/env python3
 """
-Binance Trading Bot - Bollinger Bands & Heikin-Ashi Strategy
-Executes every 2 hours at specific IST times: 9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM
+Binance Trading Bot - BH Strategy
+Scans for setups based on Bollinger Bands and Heikin Ashi indicators on 1-hour timeframe.
 """
 
 import ccxt
 import pandas as pd
 import numpy as np
-import schedule
 import time
-import logging
-import os
-from datetime import datetime, timedelta
+import schedule
+from datetime import datetime, timezone
 import pytz
 from telegram import Bot
+from telegram.error import TelegramError
 import asyncio
-from config import TELEGRAM_BOT_TOKEN_1, TELEGRAM_CHAT_ID_1, TELEGRAM_BOT_TOKEN_2, TELEGRAM_CHAT_ID_2
+import config
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Constants
+TIMEFRAME = '1h'
+BB_PERIOD = 20
+BB_STD = 2
+MIN_BODY_SIZE_PERCENT = 30  # Minimum body size for signal confirmation
+RATE_LIMIT_DELAY = 0.5  # Delay between API calls (seconds)
 
-# Initialize Binance exchange
-exchange = ccxt.binance({
-    'enableRateLimit': True,
-    'options': {'defaultType': 'future'}  # Use futures market
-})
 
-# IST timezone
-IST = pytz.timezone('Asia/Kolkata')
-
-# Set environment timezone to IST for schedule library
-os.environ['TZ'] = 'Asia/Kolkata'
-try:
-    time.tzset()  # Available on Unix-like systems
-except AttributeError:
-    logger.warning("time.tzset() not available on this system. Ensure system timezone is set to IST.")
-
-def load_pairs():
-    """Load trading pairs from CSV file"""
-    try:
-        # Try with the actual filename (with space)
-        pairs_file = 'binance pairs.csv'
-        with open(pairs_file, 'r') as f:
-            content = f.read().strip()
-            # If the file just references itself, use defaults
-            if content == 'binance pairs.csv' or content == '':
-                logger.warning("pairs file is empty or self-referencing, using default pairs")
-                return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
-            
-            pairs = [line.strip() for line in content.split('\n') if line.strip() and not line.startswith('#')]
-            if not pairs:
-                logger.warning("No pairs found in file, using defaults")
-                return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
-            logger.info(f"Loaded {len(pairs)} pairs from {pairs_file}")
-            return pairs
-    except FileNotFoundError:
-        logger.warning("binance pairs.csv not found, using default pairs")
-        return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
-
-def fetch_ohlcv(symbol, timeframe='2h', limit=100):
-    """
-    Fetch OHLCV data from Binance
+class TradingBot:
+    """Main trading bot class for BH strategy."""
     
-    Args:
-        symbol: Trading pair (e.g., 'BTC/USDT')
-        timeframe: Candle timeframe (default: '2h' for 2-hour candles)
-        limit: Number of candles to fetch
-    
-    Returns:
-        pandas DataFrame with OHLCV data
-    """
-    try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        return df
-    except Exception as e:
-        logger.error(f"Error fetching data for {symbol}: {e}")
-        return None
-
-def calculate_bollinger_bands(df, period=20, std_dev=2):
-    """
-    Calculate Bollinger Bands
-    
-    Args:
-        df: DataFrame with OHLCV data
-        period: Moving average period (default: 20)
-        std_dev: Standard deviation multiplier (default: 2)
-    
-    Returns:
-        DataFrame with BB columns added
-    """
-    df = df.copy()
-    df['bb_middle'] = df['close'].rolling(window=period).mean()
-    df['bb_std'] = df['close'].rolling(window=period).std()
-    df['bb_upper'] = df['bb_middle'] + (std_dev * df['bb_std'])
-    df['bb_lower'] = df['bb_middle'] - (std_dev * df['bb_std'])
-    return df
-
-def calculate_heikin_ashi(df):
-    """
-    Calculate Heikin-Ashi candles
-    
-    Args:
-        df: DataFrame with OHLCV data
-    
-    Returns:
-        DataFrame with HA columns added
-    """
-    df = df.copy()
-    
-    # HA Close
-    df['ha_close'] = (df['open'] + df['high'] + df['low'] + df['close']) / 4
-    
-    # HA Open (first candle uses regular open)
-    df['ha_open'] = 0.0
-    df.loc[df.index[0], 'ha_open'] = df.loc[df.index[0], 'open']
-    
-    for i in range(1, len(df)):
-        df.loc[df.index[i], 'ha_open'] = (df.loc[df.index[i-1], 'ha_open'] + df.loc[df.index[i-1], 'ha_close']) / 2
-    
-    # HA High and Low
-    df['ha_high'] = df[['high', 'ha_open', 'ha_close']].max(axis=1)
-    df['ha_low'] = df[['low', 'ha_open', 'ha_close']].min(axis=1)
-    
-    # Calculate body size percentage
-    df['ha_body_size'] = abs(df['ha_close'] - df['ha_open'])
-    df['ha_range'] = df['ha_high'] - df['ha_low']
-    df['ha_body_pct'] = (df['ha_body_size'] / df['ha_range']) * 100
-    
-    # Determine candle color (green = bullish, red = bearish)
-    df['ha_color'] = np.where(df['ha_close'] > df['ha_open'], 'green', 'red')
-    
-    return df
-
-def generate_signals(df):
-    """
-    Generate buy/sell signals based on BB and HA strategy
-    
-    Buy Signal:
-    - Look at latest 2-3 candles
-    - Red HA candle touches/crosses lower BB (body or wick)
-    - Next candle is green HA with >= 30% body size
-    
-    Sell Signal:
-    - Look at latest 2-3 candles
-    - Green HA candle touches/crosses upper BB (body or wick)
-    - Next candle is red HA with >= 30% body size
-    
-    Args:
-        df: DataFrame with BB and HA indicators
-    
-    Returns:
-        'BUY', 'SELL', or None
-    """
-    if len(df) < 3:
-        return None
-    
-    # Get last 3 candles
-    last_3 = df.tail(3).reset_index(drop=True)
-    
-    # Check for BUY signal
-    for i in range(len(last_3) - 1):
-        current = last_3.iloc[i]
-        next_candle = last_3.iloc[i + 1]
+    def __init__(self):
+        """Initialize the trading bot with Binance exchange and Telegram bots."""
+        # Initialize Binance exchange (using public endpoints, no authentication required)
+        # Public endpoints are sufficient for fetching OHLCV data
+        # If authenticated endpoints are needed in the future, add API keys to config.py
+        self.exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'future'  # Use futures market
+            }
+        })
         
-        # Red candle touching lower BB
-        if current['ha_color'] == 'red':
-            touches_lower = (current['ha_low'] <= current['bb_lower']) or (current['ha_close'] <= current['bb_lower'])
-            
-            # Next candle is green with >= 30% body
-            if touches_lower and next_candle['ha_color'] == 'green' and next_candle['ha_body_pct'] >= 30:
-                return 'BUY'
-    
-    # Check for SELL signal
-    for i in range(len(last_3) - 1):
-        current = last_3.iloc[i]
-        next_candle = last_3.iloc[i + 1]
+        # Initialize Telegram bots
+        self.telegram_bot_1 = Bot(token=config.TELEGRAM_BOT_TOKEN_1)
+        self.telegram_bot_2 = Bot(token=config.TELEGRAM_BOT_TOKEN_2)
         
-        # Green candle touching upper BB
-        if current['ha_color'] == 'green':
-            touches_upper = (current['ha_high'] >= current['bb_upper']) or (current['ha_close'] >= current['bb_upper'])
-            
-            # Next candle is red with >= 30% body
-            if touches_upper and next_candle['ha_color'] == 'red' and next_candle['ha_body_pct'] >= 30:
-                return 'SELL'
+        print(f"[{self.get_timestamp()}] Trading bot initialized")
     
-    return None
-
-def scan_pairs(pairs):
-    """
-    Scan all trading pairs for signals
+    def get_timestamp(self):
+        """Get current timestamp in IST."""
+        ist = pytz.timezone('Asia/Kolkata')
+        return datetime.now(ist).strftime('%Y-%m-%d %H:%M:%S IST')
     
-    Args:
-        pairs: List of trading pairs
-    
-    Returns:
-        Dictionary with 'BUY' and 'SELL' lists
-    """
-    signals = {'BUY': [], 'SELL': []}
-    
-    for pair in pairs:
+    def load_pairs(self, filename='binance pairs.csv'):
+        """Load trading pairs from CSV file."""
         try:
-            logger.info(f"Scanning {pair}...")
+            df = pd.read_csv(filename, header=None)
+            pairs = df[0].str.strip().tolist() if not df.empty else []
+            # Filter out empty strings and ensure proper format
+            pairs = [p.strip() for p in pairs if p.strip()]
+            print(f"[{self.get_timestamp()}] Loaded {len(pairs)} trading pairs")
+            return pairs
+        except FileNotFoundError:
+            print(f"[{self.get_timestamp()}] Error: {filename} not found")
+            return []
+        except Exception as e:
+            print(f"[{self.get_timestamp()}] Error loading pairs: {e}")
+            return []
+    
+    def fetch_ohlcv(self, symbol, limit=100):
+        """
+        Fetch OHLCV data from Binance.
+        
+        Args:
+            symbol: Trading pair symbol (e.g., 'DUSK/USDT')
+            limit: Number of candles to fetch
             
-            # Fetch 2-hour candle data
-            df = fetch_ohlcv(pair, timeframe='2h', limit=50)
-            if df is None or len(df) < 25:
-                logger.warning(f"Insufficient data for {pair}")
-                continue
+        Returns:
+            DataFrame with OHLCV data or None on error
+        """
+        try:
+            ohlcv = self.exchange.fetch_ohlcv(symbol, TIMEFRAME, limit=limit)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            return df
+        except Exception as e:
+            print(f"[{self.get_timestamp()}] Error fetching data for {symbol}: {e}")
+            return None
+    
+    def calculate_bollinger_bands(self, df):
+        """
+        Calculate Bollinger Bands.
+        
+        Args:
+            df: DataFrame with OHLCV data
+            
+        Returns:
+            DataFrame with added BB columns (bb_upper, bb_middle, bb_lower)
+        """
+        df = df.copy()
+        df['bb_middle'] = df['close'].rolling(window=BB_PERIOD).mean()
+        bb_std = df['close'].rolling(window=BB_PERIOD).std()
+        df['bb_upper'] = df['bb_middle'] + (BB_STD * bb_std)
+        df['bb_lower'] = df['bb_middle'] - (BB_STD * bb_std)
+        return df
+    
+    def calculate_heikin_ashi(self, df):
+        """
+        Calculate Heikin Ashi candles.
+        
+        Args:
+            df: DataFrame with OHLCV data
+            
+        Returns:
+            DataFrame with added HA columns (ha_open, ha_high, ha_low, ha_close)
+        """
+        df = df.copy()
+        
+        # HA Close = (Open + High + Low + Close) / 4
+        df['ha_close'] = (df['open'] + df['high'] + df['low'] + df['close']) / 4
+        
+        # HA Open
+        df['ha_open'] = 0.0
+        df.loc[0, 'ha_open'] = (df.loc[0, 'open'] + df.loc[0, 'close']) / 2
+        
+        for i in range(1, len(df)):
+            df.loc[i, 'ha_open'] = (df.loc[i-1, 'ha_open'] + df.loc[i-1, 'ha_close']) / 2
+        
+        # HA High and Low
+        df['ha_high'] = df[['high', 'ha_open', 'ha_close']].max(axis=1)
+        df['ha_low'] = df[['low', 'ha_open', 'ha_close']].min(axis=1)
+        
+        return df
+    
+    def calculate_body_size_percent(self, ha_open, ha_close, ha_high, ha_low):
+        """
+        Calculate body size as percentage of total candle range.
+        
+        Args:
+            ha_open: HA open price
+            ha_close: HA close price
+            ha_high: HA high price
+            ha_low: HA low price
+            
+        Returns:
+            Body size percentage (0-100)
+        """
+        total_range = ha_high - ha_low
+        if total_range == 0:
+            return 0
+        
+        body_size = abs(ha_close - ha_open)
+        body_percent = (body_size / total_range) * 100
+        return body_percent
+    
+    def is_red_candle(self, ha_open, ha_close):
+        """Check if Heikin Ashi candle is red (bearish)."""
+        return ha_close < ha_open
+    
+    def is_green_candle(self, ha_open, ha_close):
+        """Check if Heikin Ashi candle is green (bullish)."""
+        return ha_close > ha_open
+    
+    def touches_or_breaks_lower_bb(self, ha_low, ha_close, bb_lower):
+        """
+        Check if candle touches or breaks lower Bollinger Band.
+        Checks both body and wick.
+        """
+        return ha_low <= bb_lower or ha_close <= bb_lower
+    
+    def touches_or_breaks_upper_bb(self, ha_high, ha_close, bb_upper):
+        """
+        Check if candle touches or breaks upper Bollinger Band.
+        Checks both body and wick.
+        """
+        return ha_high >= bb_upper or ha_close >= bb_upper
+    
+    def check_buy_signal(self, df):
+        """
+        Check for buy signal based on BH strategy.
+        
+        Buy Signal Conditions:
+        1. A red HA candle touches or breaks the lower Bollinger Band
+        2. The next candle is green and has at least 30% body size
+        
+        Args:
+            df: DataFrame with OHLCV, BB, and HA data
+            
+        Returns:
+            Tuple (has_signal: bool, details: dict)
+        """
+        if len(df) < 2:
+            return False, {}
+        
+        # Get the last two candles
+        prev_candle = df.iloc[-2]
+        current_candle = df.iloc[-1]
+        
+        # Check if previous candle is red
+        prev_is_red = self.is_red_candle(prev_candle['ha_open'], prev_candle['ha_close'])
+        
+        # Check if previous candle touches/breaks lower BB
+        prev_touches_bb = self.touches_or_breaks_lower_bb(
+            prev_candle['ha_low'], 
+            prev_candle['ha_close'], 
+            prev_candle['bb_lower']
+        )
+        
+        # Check if current candle is green
+        current_is_green = self.is_green_candle(current_candle['ha_open'], current_candle['ha_close'])
+        
+        # Calculate current candle body size
+        current_body_percent = self.calculate_body_size_percent(
+            current_candle['ha_open'],
+            current_candle['ha_close'],
+            current_candle['ha_high'],
+            current_candle['ha_low']
+        )
+        
+        # Check if body size meets minimum requirement
+        body_size_ok = current_body_percent >= MIN_BODY_SIZE_PERCENT
+        
+        # Buy signal is valid if all conditions are met
+        has_signal = prev_is_red and prev_touches_bb and current_is_green and body_size_ok
+        
+        details = {
+            'prev_candle_red': prev_is_red,
+            'prev_touches_lower_bb': prev_touches_bb,
+            'current_candle_green': current_is_green,
+            'current_body_percent': round(current_body_percent, 2),
+            'body_size_ok': body_size_ok,
+            'prev_ha_close': prev_candle['ha_close'],
+            'prev_bb_lower': prev_candle['bb_lower'],
+            'current_ha_close': current_candle['ha_close'],
+            'timestamp': current_candle['timestamp']
+        }
+        
+        return has_signal, details
+    
+    def check_sell_signal(self, df):
+        """
+        Check for sell signal based on BH strategy.
+        
+        Sell Signal Conditions:
+        1. A green HA candle touches or breaks the upper Bollinger Band
+        2. The next candle is red and has at least 30% body size
+        
+        Args:
+            df: DataFrame with OHLCV, BB, and HA data
+            
+        Returns:
+            Tuple (has_signal: bool, details: dict)
+        """
+        if len(df) < 2:
+            return False, {}
+        
+        # Get the last two candles
+        prev_candle = df.iloc[-2]
+        current_candle = df.iloc[-1]
+        
+        # Check if previous candle is green
+        prev_is_green = self.is_green_candle(prev_candle['ha_open'], prev_candle['ha_close'])
+        
+        # Check if previous candle touches/breaks upper BB
+        prev_touches_bb = self.touches_or_breaks_upper_bb(
+            prev_candle['ha_high'],
+            prev_candle['ha_close'],
+            prev_candle['bb_upper']
+        )
+        
+        # Check if current candle is red
+        current_is_red = self.is_red_candle(current_candle['ha_open'], current_candle['ha_close'])
+        
+        # Calculate current candle body size
+        current_body_percent = self.calculate_body_size_percent(
+            current_candle['ha_open'],
+            current_candle['ha_close'],
+            current_candle['ha_high'],
+            current_candle['ha_low']
+        )
+        
+        # Check if body size meets minimum requirement
+        body_size_ok = current_body_percent >= MIN_BODY_SIZE_PERCENT
+        
+        # Sell signal is valid if all conditions are met
+        has_signal = prev_is_green and prev_touches_bb and current_is_red and body_size_ok
+        
+        details = {
+            'prev_candle_green': prev_is_green,
+            'prev_touches_upper_bb': prev_touches_bb,
+            'current_candle_red': current_is_red,
+            'current_body_percent': round(current_body_percent, 2),
+            'body_size_ok': body_size_ok,
+            'prev_ha_close': prev_candle['ha_close'],
+            'prev_bb_upper': prev_candle['bb_upper'],
+            'current_ha_close': current_candle['ha_close'],
+            'timestamp': current_candle['timestamp']
+        }
+        
+        return has_signal, details
+    
+    def scan_pair(self, symbol):
+        """
+        Scan a single trading pair for signals.
+        
+        Args:
+            symbol: Trading pair symbol
+            
+        Returns:
+            Dict with signal information
+        """
+        result = {
+            'symbol': symbol,
+            'buy_signal': False,
+            'sell_signal': False,
+            'buy_details': {},
+            'sell_details': {},
+            'error': None
+        }
+        
+        try:
+            # Fetch OHLCV data
+            df = self.fetch_ohlcv(symbol)
+            if df is None or len(df) < BB_PERIOD + 2:
+                result['error'] = "Insufficient data"
+                return result
             
             # Calculate indicators
-            df = calculate_bollinger_bands(df)
-            df = calculate_heikin_ashi(df)
+            df = self.calculate_bollinger_bands(df)
+            df = self.calculate_heikin_ashi(df)
             
-            # Generate signal
-            signal = generate_signals(df)
+            # Check for signals
+            buy_signal, buy_details = self.check_buy_signal(df)
+            sell_signal, sell_details = self.check_sell_signal(df)
             
-            if signal == 'BUY':
-                signals['BUY'].append(pair)
-                logger.info(f"BUY signal for {pair}")
-            elif signal == 'SELL':
-                signals['SELL'].append(pair)
-                logger.info(f"SELL signal for {pair}")
+            result['buy_signal'] = buy_signal
+            result['sell_signal'] = sell_signal
+            result['buy_details'] = buy_details
+            result['sell_details'] = sell_details
             
-            # Rate limiting
-            time.sleep(0.5)
+            if buy_signal:
+                print(f"[{self.get_timestamp()}] BUY signal for {symbol}")
+                print(f"  Details: {buy_details}")
+            
+            if sell_signal:
+                print(f"[{self.get_timestamp()}] SELL signal for {symbol}")
+                print(f"  Details: {sell_details}")
             
         except Exception as e:
-            logger.error(f"Error scanning {pair}: {e}")
-            continue
-    
-    return signals
-
-async def send_telegram_message(bot_token, chat_id, message):
-    """Send message via Telegram bot"""
-    try:
-        bot = Bot(token=bot_token)
-        await bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML')
-        logger.info(f"Message sent to chat_id {chat_id}")
-    except Exception as e:
-        logger.error(f"Error sending Telegram message to {chat_id}: {e}")
-
-def format_telegram_message(signals):
-    """
-    Format signals for Telegram notification with GHTB header
-    
-    Args:
-        signals: Dictionary with 'BUY' and 'SELL' lists
-    
-    Returns:
-        Formatted message string
-    """
-    message = "<b>GHTB</b>\n\n"
-    message += "<b>2Hr BH</b>:\n\n"
-    
-    # BUY signals
-    message += "<b>BUY:</b>\n"
-    if signals['BUY']:
-        for pair in signals['BUY']:
-            # Extract coin name (e.g., BTC from BTC/USDT)
-            coin = pair.split('/')[0]
-            message += f"  • {coin}\n"
-    else:
-        message += "  • None\n"
-    
-    message += "\n"
-    
-    # SELL signals
-    message += "<b>SELL:</b>\n"
-    if signals['SELL']:
-        for pair in signals['SELL']:
-            # Extract coin name
-            coin = pair.split('/')[0]
-            message += f"  • {coin}\n"
-    else:
-        message += "  • None\n"
-    
-    # Add timestamp in IST
-    ist_time = datetime.now(IST)
-    message += f"\n<i>Time: {ist_time.strftime('%Y-%m-%d %I:%M %p IST')}</i>"
-    
-    return message
-
-async def notify_signals(signals):
-    """Send signal notifications to all configured Telegram bots"""
-    message = format_telegram_message(signals)
-    logger.info(f"Notification message:\n{message}")
-    
-    # Send to both configured bots
-    await send_telegram_message(TELEGRAM_BOT_TOKEN_1, TELEGRAM_CHAT_ID_1, message)
-    await send_telegram_message(TELEGRAM_BOT_TOKEN_2, TELEGRAM_CHAT_ID_2, message)
-
-def run_bot():
-    """Main bot execution function"""
-    try:
-        ist_time = datetime.now(IST)
-        logger.info(f"=== Bot execution started at {ist_time.strftime('%Y-%m-%d %I:%M %p IST')} ===")
+            result['error'] = str(e)
+            print(f"[{self.get_timestamp()}] Error scanning {symbol}: {e}")
         
-        # Load trading pairs
-        pairs = load_pairs()
-        logger.info(f"Loaded {len(pairs)} trading pairs")
+        return result
+    
+    def scan_all_pairs(self):
+        """
+        Scan all trading pairs for signals.
         
-        # Scan for signals
-        signals = scan_pairs(pairs)
+        Returns:
+            Dict with lists of buy and sell signals
+        """
+        pairs = self.load_pairs()
         
-        logger.info(f"Scan complete - BUY: {len(signals['BUY'])}, SELL: {len(signals['SELL'])}")
+        if not pairs:
+            print(f"[{self.get_timestamp()}] No pairs to scan")
+            return {'buy': [], 'sell': []}
         
-        # Send notifications
-        asyncio.run(notify_signals(signals))
+        buy_signals = []
+        sell_signals = []
         
-        logger.info("=== Bot execution completed ===\n")
+        print(f"[{self.get_timestamp()}] Scanning {len(pairs)} pairs...")
         
-    except Exception as e:
-        logger.error(f"Error in bot execution: {e}", exc_info=True)
-
-def schedule_bot():
-    """
-    Schedule bot to run at specific IST times every day:
-    9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM
-    
-    The environment timezone is set to IST at module import to ensure
-    the schedule library interprets times correctly.
-    """
-    # Define execution times in IST (24-hour format)
-    execution_times = [
-        "09:30",  # 9:30 AM
-        "11:30",  # 11:30 AM
-        "13:30",  # 1:30 PM
-        "15:30",  # 3:30 PM
-        "17:30",  # 5:30 PM
-        "19:30",  # 7:30 PM
-        "21:30",  # 9:30 PM
-    ]
-    
-    # Schedule for each time
-    for exec_time in execution_times:
-        schedule.every().day.at(exec_time).do(run_bot)
-        logger.info(f"Scheduled bot execution at {exec_time} IST")
-    
-    # Log current timezone for verification
-    current_time = datetime.now(IST)
-    logger.info(f"Current IST time: {current_time.strftime('%Y-%m-%d %I:%M %p IST')}")
-    logger.info("Bot scheduler initialized. Waiting for scheduled times...")
-    logger.info("Execution schedule: Every 2 hours at 9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM IST")
-
-def main():
-    """Main entry point"""
-    logger.info("=" * 60)
-    logger.info("Binance Trading Bot - Bollinger Bands & Heikin-Ashi Strategy")
-    logger.info("Timeframe: 2-hour candles")
-    logger.info("Schedule: Every 2 hours at specific IST times")
-    logger.info("=" * 60)
-    
-    # Run once immediately for initial testing/verification
-    logger.info("Running initial scan...")
-    run_bot()
-    
-    # Set up scheduler
-    schedule_bot()
-    
-    # Keep the script running and check for scheduled tasks
-    while True:
-        try:
-            # Calculate next run time
-            next_run = schedule.next_run()
-            if next_run:
-                # Convert to IST for display
-                ist_next = next_run.astimezone(IST) if hasattr(next_run, 'astimezone') else datetime.now(IST) + timedelta(hours=1)
-                logger.info(f"Next scheduled run: {ist_next.strftime('%Y-%m-%d %I:%M %p IST')}")
+        for pair in pairs:
+            # Add delay to respect rate limits
+            time.sleep(RATE_LIMIT_DELAY)
             
-            # Run pending scheduled tasks
+            result = self.scan_pair(pair)
+            
+            if result['buy_signal']:
+                buy_signals.append(pair)
+            
+            if result['sell_signal']:
+                sell_signals.append(pair)
+        
+        return {
+            'buy': buy_signals,
+            'sell': sell_signals
+        }
+    
+    async def send_telegram_message(self, message):
+        """
+        Send message to Telegram bots.
+        
+        Args:
+            message: Message text to send
+        """
+        try:
+            # Send to first bot
+            await self.telegram_bot_1.send_message(
+                chat_id=config.TELEGRAM_CHAT_ID_1,
+                text=message,
+                parse_mode='Markdown'
+            )
+            print(f"[{self.get_timestamp()}] Message sent to Telegram bot 1")
+        except TelegramError as e:
+            print(f"[{self.get_timestamp()}] Error sending to Telegram bot 1: {e}")
+        
+        try:
+            # Send to second bot
+            await self.telegram_bot_2.send_message(
+                chat_id=config.TELEGRAM_CHAT_ID_2,
+                text=message,
+                parse_mode='Markdown'
+            )
+            print(f"[{self.get_timestamp()}] Message sent to Telegram bot 2")
+        except TelegramError as e:
+            print(f"[{self.get_timestamp()}] Error sending to Telegram bot 2: {e}")
+    
+    def format_telegram_message(self, signals):
+        """
+        Format signals into Telegram message.
+        
+        Args:
+            signals: Dict with buy and sell signal lists
+            
+        Returns:
+            Formatted message string
+        """
+        message = "*1Hr BH*\n\n"
+        
+        # Buy signals
+        message += "*BUY:*\n"
+        if signals['buy']:
+            for pair in signals['buy']:
+                # Remove /USDT suffix for display
+                coin_name = pair.replace('/USDT', '')
+                message += f"  • {coin_name}\n"
+        else:
+            message += "  None\n"
+        
+        message += "\n"
+        
+        # Sell signals
+        message += "*SELL:*\n"
+        if signals['sell']:
+            for pair in signals['sell']:
+                # Remove /USDT suffix for display
+                coin_name = pair.replace('/USDT', '')
+                message += f"  • {coin_name}\n"
+        else:
+            message += "  None\n"
+        
+        message += f"\n_Scanned at {self.get_timestamp()}_"
+        
+        return message
+    
+    def run_scan(self):
+        """Run a complete scan and send notifications."""
+        print(f"\n{'='*60}")
+        print(f"[{self.get_timestamp()}] Starting scan...")
+        print(f"{'='*60}\n")
+        
+        try:
+            # Scan all pairs
+            signals = self.scan_all_pairs()
+            
+            # Format and send message
+            message = self.format_telegram_message(signals)
+            
+            print(f"\n[{self.get_timestamp()}] Scan complete")
+            print(f"Buy signals: {len(signals['buy'])}")
+            print(f"Sell signals: {len(signals['sell'])}")
+            
+            # Send telegram notification
+            asyncio.run(self.send_telegram_message(message))
+            
+        except Exception as e:
+            print(f"[{self.get_timestamp()}] Error during scan: {e}")
+    
+    def run_continuously(self):
+        """Run the bot continuously with hourly scans between 9 AM - 10 PM IST."""
+        ist = pytz.timezone('Asia/Kolkata')
+        
+        # Schedule scans every hour between 9 AM and 10 PM IST
+        for hour in range(9, 23):  # 9 AM to 10 PM (22:00)
+            time_str = f"{hour:02d}:00"
+            schedule.every().day.at(time_str).do(self.run_scan)
+        
+        print(f"[{self.get_timestamp()}] Bot scheduled to run hourly from 9 AM to 10 PM IST")
+        print(f"[{self.get_timestamp()}] Next run: {schedule.next_run()}")
+        
+        # Run immediately on start
+        self.run_scan()
+        
+        # Keep running
+        while True:
             schedule.run_pending()
             time.sleep(60)  # Check every minute
-            
-        except KeyboardInterrupt:
-            logger.info("Bot stopped by user")
-            break
-        except Exception as e:
-            logger.error(f"Error in scheduler loop: {e}", exc_info=True)
-            time.sleep(60)
+
+
+def main():
+    """Main entry point for the trading bot."""
+    print("="*60)
+    print("Binance Trading Bot - BH Strategy")
+    print("="*60)
+    
+    bot = TradingBot()
+    
+    # For testing, run a single scan
+    # For production, use bot.run_continuously()
+    bot.run_scan()
+
 
 if __name__ == "__main__":
     main()

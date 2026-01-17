@@ -4,9 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 build/
 develop-eggs/
 dist/
@@ -23,10 +20,10 @@ wheels/
 .installed.cfg
 *.egg
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
+# Virtual Environment
+venv/
+ENV/
+env/
 
 # IDE
 .vscode/
@@ -42,6 +39,11 @@ Thumbs.db
 # Logs
 *.log
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
 # Temporary files
-/tmp/
 *.tmp
+tmp/
