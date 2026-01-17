@@ -4,12 +4,12 @@ This repository contains the code for a Binance crypto futures trading bot that 
 
 The bot will:
 
-1. Fetch OHLC data from Binance API for specific trading pairs defined in the `binance pairs.csv` file.
-2. Compute Bollinger Bands (20-period, 2 STD) and Heikin Ashi candles with 100% accuracy.
-3. Identify buy and sell signals based on the strict BH strategy rules.
-4. Notify signals via Telegram bot messages to configured channels.
-5. Run from 9:00 AM to 10:00 PM IST every hour (configurable).
-6. Provide a backtesting feature for validating the strategy on historical data.
+1. Fetch OHLC data from the Binance API for specific trading pairs defined in the `binance pairs.csv` file.
+2. Compute Bollinger Bands and Heikin Ashi candles.
+3. Identify buy and sell signals based on the provided strategy.
+4. Notify signals via Telegram bot messages.
+5. Run at 22 minutes past each hour (XX:22) from 9:22 AM to 10:22 PM IST.
+6. Provide visualization tools for validating signal accuracy.
 
 ## Installation
 
@@ -108,55 +108,19 @@ Signals are sent every hour to both configured Telegram bots in the format:
 _Scanned at 2026-01-17 15:00:00 IST_
 ```
 
+## Visualization
+
+To validate signal accuracy visually, run:
+```bash
+python visualize_signals.py BTC/USDT
+```
+
+This will generate charts showing Heikin-Ashi candles, Bollinger Bands, and detected signals for manual validation.
+
 ## Configuration
+Telegram bot credentials are configured in the `config.py` file. The bot uses Binance public API which doesn't require API keys for fetching market data.
 
-The `config.py` file contains Telegram bot credentials (already configured):
-
-```python
-TELEGRAM_BOT_TOKEN_1 = 'your_bot_token_1'
-TELEGRAM_CHAT_ID_1 = 'your_chat_id_1'
-
-TELEGRAM_BOT_TOKEN_2 = 'your_bot_token_2'
-TELEGRAM_CHAT_ID_2 = 'your_chat_id_2'
-```
-
-## File Structure
-
-```
-trading-BH/
-├── main.py              # Main trading bot with signal generation
-├── backtest.py          # Backtesting utility for historical validation
-├── test_signals.py      # Unit tests for signal logic
-├── config.py            # Configuration (Telegram credentials)
-├── binance pairs.csv    # Trading pairs to monitor
-├── requirements.txt     # Python dependencies
-└── README.md           # Documentation
-```
-
-## Testing & Validation
-
-The bot includes comprehensive testing:
-
-1. **Unit Tests** (`test_signals.py`):
-   - Body size calculation accuracy
-   - Candle color detection
-   - Bollinger Band touch detection
-   - Buy signal generation
-   - Sell signal generation
-   - False signal prevention
-
-2. **Backtesting** (`backtest.py`):
-   - Historical data analysis
-   - Signal frequency validation
-   - Strategy performance review
-
-3. **Example Pairs Tested**:
-   - DUSK/USDT
-   - ARB/USDT
-   - CFX/USDT
-   - ETHFI/USDT
-
-All tests pass successfully, confirming accurate signal generation.
+**Security Note**: In production, it's recommended to move sensitive credentials (Telegram tokens) to environment variables instead of committing them to the repository.
 
 ## Disclaimer
 This system is for educational purposes only and should not be considered as financial advice. Cryptocurrency trading is highly volatile and carries a high level of risk. Trade responsibly.
