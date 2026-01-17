@@ -57,12 +57,7 @@ class TelegramNotifier:
             True if successful, False otherwise
         """
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is already running, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            return loop.run_until_complete(self.send_message_async(message))
+            return asyncio.run(self.send_message_async(message))
         except Exception as e:
             logger.error(f"Error in send_message: {e}")
             return False

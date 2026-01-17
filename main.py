@@ -15,6 +15,10 @@ from signals import scan_multiple_pairs
 from telegram_notifier import send_to_multiple_bots
 import config
 
+# Constants
+TRADING_START_HOUR = 9  # 9 AM IST
+TRADING_END_HOUR = 22   # 10 PM IST
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -123,8 +127,8 @@ def is_within_trading_hours():
     now = datetime.now(ist)
     current_hour = now.hour
     
-    # Trading hours: 9 AM (9) to 10 PM (22)
-    return 9 <= current_hour <= 22
+    # Trading hours: 9 AM to 10 PM IST
+    return TRADING_START_HOUR <= current_hour <= TRADING_END_HOUR
 
 
 def job_wrapper():

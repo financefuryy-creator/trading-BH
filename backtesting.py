@@ -6,6 +6,9 @@ import logging
 from datetime import datetime
 from signals import generate_signals
 
+# Constants
+MIN_INDICATOR_PERIODS = 30  # Minimum data points needed for BB calculation
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,12 +49,12 @@ class Backtester:
         self.trades = []
         
         # Need enough data for indicators
-        if len(df) < 30:
+        if len(df) < MIN_INDICATOR_PERIODS:
             logger.warning(f"Insufficient data for backtesting {symbol}")
             return None
         
-        # Iterate through data points starting from index 30
-        for i in range(30, len(df)):
+        # Iterate through data points starting from MIN_INDICATOR_PERIODS
+        for i in range(MIN_INDICATOR_PERIODS, len(df)):
             current_df = df.iloc[:i+1].copy()
             signal_type, signal_details = generate_signals(current_df, min_body_size)
             current_price = df.iloc[i]['close']
