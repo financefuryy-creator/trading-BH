@@ -28,7 +28,11 @@ class TradingBot:
     
     def __init__(self):
         """Initialize the trading bot"""
-        # Initialize exchange without authentication for public endpoints
+        # Note: Using Binance exchange for market data
+        # The config.py contains CoinDCX credentials, but we use Binance's public API
+        # for OHLCV data as it doesn't require authentication for public endpoints.
+        # If you want to use CoinDCX instead, change 'binance' to 'coindcx' below
+        # and ensure proper API credentials are configured.
         self.exchange = ccxt.binance({
             'enableRateLimit': True,
             'options': {
@@ -43,7 +47,11 @@ class TradingBot:
     def load_pairs(self) -> List[str]:
         """Load trading pairs from CSV file"""
         try:
-            df = pd.read_csv('/home/runner/work/trading-BH/trading-BH/pairs.csv', header=None)
+            # Use relative path from script location
+            import os
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            pairs_file = os.path.join(script_dir, 'pairs.csv')
+            df = pd.read_csv(pairs_file, header=None)
             pairs = df[0].tolist()
             # Filter out non-pair entries (like the filename reference)
             pairs = [p for p in pairs if '/' in p or 'USDT' in p.upper()]
@@ -124,7 +132,11 @@ class TradingBot:
         df['ha_color'] = df.apply(lambda x: 'green' if x['ha_close'] >= x['ha_open'] else 'red', axis=1)
         df['ha_body_size'] = abs(df['ha_close'] - df['ha_open'])
         df['ha_total_size'] = df['ha_high'] - df['ha_low']
-        df['ha_body_pct'] = (df['ha_body_size'] / df['ha_total_size']) * 100
+        # Prevent division by zero when high equals low
+        df['ha_body_pct'] = df.apply(
+            lambda x: (x['ha_body_size'] / x['ha_total_size'] * 100) if x['ha_total_size'] > 0 else 0,
+            axis=1
+        )
         
         return df
     
@@ -241,23 +253,23 @@ class TradingBot:
             bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
             
             # Format message
-            message = "📊 **1Hr BH Signals**\n\n"
+            message = "📊 *1Hr BH Signals*\n\n"
             
             if buy_signals:
-                message += "🟢 **BUY:**\n"
+                message += "🟢 *BUY:*\n"
                 for coin in buy_signals:
                     message += f"  • {coin}\n"
             else:
-                message += "🟢 **BUY:** None\n"
+                message += "🟢 *BUY:* None\n"
             
             message += "\n"
             
             if sell_signals:
-                message += "🔴 **SELL:**\n"
+                message += "🔴 *SELL:*\n"
                 for coin in sell_signals:
                     message += f"  • {coin}\n"
             else:
-                message += "🔴 **SELL:** None\n"
+                message += "🔴 *SELL:* None\n"
             
             # Send message
             bot.send_message(
