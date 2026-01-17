@@ -13,17 +13,32 @@ The bot will:
 
 ## Installation
 
-1. Clone the repository.
-2. Install Python dependencies:
+1. Clone the repository:
    ```bash
-   pip install -r requirements.txt
+   git clone https://github.com/financefuryy-creator/trading-BH.git
+   cd trading-BH
    ```
 3. Configure the Telegram bot tokens and chat IDs in `config.py` (already configured).
 4. Customize trading pairs in `trading_pairs.csv` if needed.
 5. Run the bot:
    ```bash
-   python main.py
+   pip install -r requirements.txt
    ```
+
+## Execution Schedule
+
+The bot executes automatically at **30 minutes past every hour** from **9:30 AM to 10:30 PM IST**:
+
+```
+9:30 AM, 10:30 AM, 11:30 AM, 12:30 PM, 1:30 PM, 2:30 PM, 3:30 PM,
+4:30 PM, 5:30 PM, 6:30 PM, 7:30 PM, 8:30 PM, 9:30 PM, 10:30 PM
+```
+
+- **Total executions:** 14 times per day
+- **Timezone:** IST (India Standard Time, UTC+5:30)
+- **Pattern:** Every hour at :30 minutes
+
+The bot uses the `schedule` library with proper IST timezone handling to ensure accurate execution times. **Note:** The system timezone should be configured to IST for the schedule to work correctly.
 
 ## How It Works
 
@@ -35,15 +50,36 @@ The strategy uses:
 - **Heikin Ashi Candles**:
   - Calculated dynamically using OHLC data for accurate results.
 
-### Signal Generation Logic
+### Signal Generation Logic (Strict Implementation)
 
-#### Buy Signal:
-- Look at the latest 2-3 candles.
-- If the red HA candle (downward candle) touches or crosses the lower Bollinger Band on its body or wick, and the next candle is green (upward HA candle) with 30% body size, a buy signal is generated.
+#### Buy Signal Requirements (ALL must be met):
+1. **Previous Candle**: Red Heikin Ashi candle (HA_Close < HA_Open)
+2. **BB Touch**: Previous candle's body or wick touches or breaks the lower Bollinger Band
+3. **Current Candle**: Green Heikin Ashi candle (HA_Close > HA_Open)
+4. **Body Size**: Current candle has at least 30% body size
+   - Body Size % = (|HA_Close - HA_Open| / (HA_High - HA_Low)) × 100
+   - Must be ≥ 30%
 
-#### Sell Signal:
-- Look at the latest 2-3 candles.
-- If the green HA candle (upward candle) touches or crosses the upper Bollinger Band on its body or wick, and the next candle is red (downward HA candle) with 30% body size, a sell signal is generated.
+#### Sell Signal Requirements (ALL must be met):
+1. **Previous Candle**: Green Heikin Ashi candle (HA_Close > HA_Open)
+2. **BB Touch**: Previous candle's body or wick touches or breaks the upper Bollinger Band
+3. **Current Candle**: Red Heikin Ashi candle (HA_Close < HA_Open)
+4. **Body Size**: Current candle has at least 30% body size
+   - Body Size % = (|HA_Close - HA_Open| / (HA_High - HA_Low)) × 100
+   - Must be ≥ 30%
+
+#### Key Implementation Details:
+- **Heikin Ashi Calculation**: Uses proper HA formula for accurate candle representation
+- **BB Touch Detection**: Checks both candle body (close) and wick (high/low) for BB interaction
+- **Body Size Verification**: Ensures meaningful reversal candles (not just small movements)
+- **Error Handling**: Robust error handling for API failures and data issues
+
+### Telegram Notifications
+
+Signals are sent every hour to both configured Telegram bots in the format:
+
+```
+*1Hr BH*
 
 ### Telegram Notifications
 - Signals are sent every hour in the format:
