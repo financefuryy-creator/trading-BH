@@ -8,8 +8,8 @@ The bot will:
 2. Compute Bollinger Bands and Heikin Ashi candles.
 3. Identify buy and sell signals based on the provided strategy.
 4. Notify signals via Telegram bot messages.
-5. Run at 22 minutes past each hour (XX:22) from 9:22 AM to 10:22 PM IST.
-6. Provide visualization tools for validating signal accuracy.
+5. **Execute at 30 minutes past every hour from 9:30 AM to 10:30 PM IST** (14 executions per day).
+6. Provide a backtesting feature for validating the strategy.
 
 ## Installation
 
@@ -18,44 +18,34 @@ The bot will:
    git clone https://github.com/financefuryy-creator/trading-BH.git
    cd trading-BH
    ```
-
-2. Install Python dependencies:
+3. Configure the API keys and settings in `config.py`.
+4. **Important:** Ensure your system timezone is set to IST (Asia/Kolkata) for correct schedule execution:
+   ```bash
+   # On Linux/Mac
+   export TZ=Asia/Kolkata
+   
+   # Or set system timezone permanently
+   sudo timedatectl set-timezone Asia/Kolkata
+   ```
+5. Run the bot:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Configure Telegram credentials in `config.py` (already set up).
+## Execution Schedule
 
-4. Add trading pairs to `binance pairs.csv` (one per line in format: SYMBOL/USDT).
+The bot executes automatically at **30 minutes past every hour** from **9:30 AM to 10:30 PM IST**:
 
-## Usage
-
-### Running the Bot
-
-**Single Scan (Testing):**
-```bash
-python main.py
+```
+9:30 AM, 10:30 AM, 11:30 AM, 12:30 PM, 1:30 PM, 2:30 PM, 3:30 PM,
+4:30 PM, 5:30 PM, 6:30 PM, 7:30 PM, 8:30 PM, 9:30 PM, 10:30 PM
 ```
 
-**Continuous Operation (Production):**
-Edit `main.py` and uncomment `bot.run_continuously()` in the main function, then:
-```bash
-python main.py
-```
+- **Total executions:** 14 times per day
+- **Timezone:** IST (India Standard Time, UTC+5:30)
+- **Pattern:** Every hour at :30 minutes
 
-### Backtesting
-
-Test the strategy on historical data:
-```bash
-python backtest.py
-```
-
-### Testing Signal Logic
-
-Verify signal generation logic with unit tests:
-```bash
-python test_signals.py
-```
+The bot uses the `schedule` library with proper IST timezone handling to ensure accurate execution times. **Note:** The system timezone should be configured to IST for the schedule to work correctly.
 
 ## How It Works
 
@@ -98,9 +88,21 @@ Signals are sent every hour to both configured Telegram bots in the format:
 ```
 *1Hr BH*
 
-*BUY:*
-  • DUSK
-  • ARB
+### Telegram Notifications
+- Signals are sent every hour in the format:
+  - **1Hr BH**:
+    - BUY:
+      - List of coin names.
+    - SELL:
+      - List of coin names.
+
+## Development Plan
+- Fetch Data from CoinDCX API.
+- Compute BB and HA indicators with 100% accuracy.
+- Identify Buy/Sell signals accurately as per strategy.
+- Notify signals via Telegram.
+- Create a backtesting utility.
+- **Deploy locally to run at :30 of every hour from 9:30 AM to 10:30 PM IST** (14 times daily).
 
 *SELL:*
   • CFX

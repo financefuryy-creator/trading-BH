@@ -2,6 +2,6 @@ ccxt
 pandas
 numpy
 schedule
-requests
+python-telegram-bot
 pytz
-matplotlib
+requests
