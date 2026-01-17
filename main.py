@@ -53,9 +53,10 @@ def load_trading_pairs(filepath='trading_pairs.csv'):
     """
     try:
         # Try to load from specified filepath, fallback to pairs.csv
+        original_filepath = filepath
         if not os.path.exists(filepath) and os.path.exists('pairs.csv'):
             filepath = 'pairs.csv'
-            logger.info(f"Using pairs.csv instead of {filepath}")
+            logger.info(f"Using pairs.csv instead of {original_filepath}")
         
         df = pd.read_csv(filepath)
         # Convert to CCXT format (e.g., BTCUSDT -> BTC/USDT)
@@ -149,7 +150,6 @@ def is_scheduled_time():
     """
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
-    current_time = (now.hour, now.minute)
     
     # Check if current time matches any scheduled time (with 1-minute tolerance)
     for hour, minute in TRADING_SCHEDULE_TIMES:

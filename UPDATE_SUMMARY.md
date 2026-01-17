@@ -79,6 +79,8 @@ The bot will scan all pairs listed in `pairs.csv` during each execution.
 3. **visualize_signals.py**
    - Changed timeframe from '1h' to '2h'
    - Updated chart titles
+   - **Important:** Changed market type from 'future' to 'spot' to match main.py
+     (Ensures consistency - both use spot market data)
 
 4. **pairs.csv**
    - Populated with 15 USDT trading pairs
