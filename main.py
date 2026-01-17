@@ -58,17 +58,22 @@ class TradingBot:
             DataFrame with OHLC data
         """
         try:
-            # CoinDCX API endpoint for market data
-            url = f"https://api.coindcx.com/exchange/v1/markets_details"
-            response = requests.get(url, timeout=10)
+            # TODO: Implement actual CoinDCX API integration
+            # CoinDCX API documentation: https://docs.coindcx.com/
+            # 
+            # Example implementation approach:
+            # 1. Use the CoinDCX REST API or WebSocket API
+            # 2. Authenticate with API key and secret from config.py
+            # 3. Request historical OHLC data for the specified pair and timeframe
+            # 4. Parse the response and convert to pandas DataFrame
+            #
+            # The current implementation uses PLACEHOLDER DATA for demonstration.
+            # This will NOT work in production and MUST be replaced with real API calls.
             
-            if response.status_code != 200:
-                logger.error(f"Failed to fetch data for {pair}: HTTP {response.status_code}")
-                return None
+            logger.warning(f"Using placeholder data for {pair} - implement real API integration!")
             
-            # For demo purposes, generate sample OHLC data
-            # In production, this should fetch real data from CoinDCX API
-            # Note: CoinDCX might require different API endpoints or methods
+            # PLACEHOLDER: Generate sample OHLC data
+            # Replace this entire section with actual API calls
             dates = pd.date_range(end=datetime.now(), periods=limit, freq='1H')
             data = {
                 'timestamp': dates,
@@ -344,12 +349,17 @@ def setup_schedule():
     """
     Setup schedule to run at 30 minutes past each hour from 9:30 AM to 10:30 PM IST
     
+    IMPORTANT: The schedule library uses the system's local time. 
+    Ensure the system is configured to IST timezone, or adjust these times accordingly.
+    For a system in UTC, subtract 5:30 hours from these IST times.
+    
     Schedule times (IST):
     9:30, 10:30, 11:30, 12:30, 13:30, 14:30, 15:30, 16:30, 17:30, 18:30, 19:30, 20:30, 21:30, 22:30
     """
     bot = TradingBot()
     
-    # Schedule for each hour at :30 minutes
+    # Schedule for each hour at :30 minutes (IST times)
+    # These times are interpreted in the system's local timezone by the schedule library
     schedule_times = [
         "09:30", "10:30", "11:30", "12:30", "13:30", "14:30", "15:30",
         "16:30", "17:30", "18:30", "19:30", "20:30", "21:30", "22:30"
@@ -357,9 +367,10 @@ def setup_schedule():
     
     for time_str in schedule_times:
         schedule.every().day.at(time_str).do(bot.run_analysis)
-        logger.info(f"Scheduled job at {time_str} IST")
+        logger.info(f"Scheduled job at {time_str} (local time)")
     
     logger.info(f"Total {len(schedule_times)} jobs scheduled")
+    logger.info(f"NOTE: Ensure system timezone is set to IST for correct execution times")
     return bot
 
 
@@ -367,7 +378,13 @@ def get_next_run_time():
     """Get the next scheduled run time in IST"""
     next_run = schedule.next_run()
     if next_run:
-        # Convert to IST
+        # Ensure next_run is timezone-aware and convert to IST
+        # schedule.next_run() returns a naive datetime in local time
+        # We need to make it timezone-aware before converting
+        if next_run.tzinfo is None:
+            # Assume it's in the system's local timezone
+            local_tz = pytz.timezone('UTC')
+            next_run = local_tz.localize(next_run)
         next_run_ist = next_run.astimezone(IST)
         return next_run_ist
     return None

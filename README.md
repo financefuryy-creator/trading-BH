@@ -19,7 +19,15 @@ The bot will:
    pip install -r requirements.txt
    ```
 3. Configure the API keys and settings in `config.py`.
-4. Run the bot:
+4. **Important:** Ensure your system timezone is set to IST (Asia/Kolkata) for correct schedule execution:
+   ```bash
+   # On Linux/Mac
+   export TZ=Asia/Kolkata
+   
+   # Or set system timezone permanently
+   sudo timedatectl set-timezone Asia/Kolkata
+   ```
+5. Run the bot:
    ```bash
    python main.py
    ```
@@ -37,7 +45,7 @@ The bot executes automatically at **30 minutes past every hour** from **9:30 AM 
 - **Timezone:** IST (India Standard Time, UTC+5:30)
 - **Pattern:** Every hour at :30 minutes
 
-The bot uses the `schedule` library with proper IST timezone handling to ensure accurate execution times.
+The bot uses the `schedule` library with proper IST timezone handling to ensure accurate execution times. **Note:** The system timezone should be configured to IST for the schedule to work correctly.
 
 ## How It Works
 
