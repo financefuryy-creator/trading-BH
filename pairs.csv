@@ -1,6 +1,16 @@
-# Trading pairs for analysis (one per line)
-# Example CoinDCX trading pairs:
-# BTCINR
-# ETHINR
-# USDTINR
-# Add your trading pairs below:
+symbol
+BTCUSDT
+ETHUSDT
+BNBUSDT
+SOLUSDT
+XRPUSDT
+ADAUSDT
+DOGEUSDT
+AVAXUSDT
+DOTUSDT
+MATICUSDT
+LINKUSDT
+UNIUSDT
+LTCUSDT
+ATOMUSDT
+ETCUSDT

@@ -1,6 +1,6 @@
 """
 Main Binance Trading Bot with Bollinger Bands and Heikin-Ashi strategy.
-Runs hourly from 9:00 AM to 10:00 PM IST.
+Runs every 2 hours from 9:30 AM to 9:30 PM IST.
 """
 import logging
 import schedule
@@ -8,16 +8,26 @@ import time
 import pandas as pd
 from datetime import datetime
 import pytz
+import os
 
 # Import custom modules
 from data_fetcher import BinanceDataFetcher
 from signals import scan_multiple_pairs
 from telegram_notifier import send_to_multiple_bots
+from visual_verification import verify_signals_visually
 import config
 
 # Constants
-TRADING_START_HOUR = 9  # 9 AM IST
-TRADING_END_HOUR = 22   # 10 PM IST
+TRADING_SCHEDULE_TIMES = [
+    (9, 30),   # 9:30 AM IST
+    (11, 30),  # 11:30 AM IST
+    (13, 30),  # 1:30 PM IST
+    (15, 30),  # 3:30 PM IST
+    (17, 30),  # 5:30 PM IST
+    (19, 30),  # 7:30 PM IST
+    (21, 30),  # 9:30 PM IST
+]
+TIMEFRAME = '2h'  # 2-hour timeframe for analysis
 
 # Configure logging
 logging.basicConfig(
@@ -42,6 +52,11 @@ def load_trading_pairs(filepath='trading_pairs.csv'):
         List of trading pair symbols in CCXT format (e.g., 'BTC/USDT')
     """
     try:
+        # Try to load from specified filepath, fallback to pairs.csv
+        if not os.path.exists(filepath) and os.path.exists('pairs.csv'):
+            filepath = 'pairs.csv'
+            logger.info(f"Using pairs.csv instead of {filepath}")
+        
         df = pd.read_csv(filepath)
         # Convert to CCXT format (e.g., BTCUSDT -> BTC/USDT)
         symbols = []
@@ -78,8 +93,8 @@ def run_trading_bot():
         fetcher = BinanceDataFetcher()
         
         # Fetch OHLC data for all pairs
-        logger.info("Fetching OHLC data from Binance...")
-        data_dict = fetcher.fetch_multiple_pairs(symbols, timeframe='1h', limit=100)
+        logger.info(f"Fetching OHLC data from Binance (timeframe: {TIMEFRAME})...")
+        data_dict = fetcher.fetch_multiple_pairs(symbols, timeframe=TIMEFRAME, limit=100)
         
         if not data_dict:
             logger.error("Failed to fetch data for any trading pairs")
@@ -96,6 +111,15 @@ def run_trading_bot():
             logger.info(f"BUY signals: {', '.join(signals['BUY'])}")
         if signals['SELL']:
             logger.info(f"SELL signals: {', '.join(signals['SELL'])}")
+        
+        # Generate visual verification charts for signals
+        if signals['BUY'] or signals['SELL']:
+            logger.info("Generating visual verification charts...")
+            chart_paths = verify_signals_visually(data_dict, signals)
+            if chart_paths:
+                logger.info(f"Visual verification complete. Charts saved: {len(chart_paths)}")
+                for symbol, path in chart_paths.items():
+                    logger.info(f"  {symbol}: {path}")
         
         # Send notifications to both Telegram bots
         bot_configs = [
@@ -116,40 +140,45 @@ def run_trading_bot():
     logger.info("=" * 60)
 
 
-def is_within_trading_hours():
+def is_scheduled_time():
     """
-    Check if current time is within trading hours (9 AM - 10 PM IST).
+    Check if current time matches one of the scheduled execution times.
     
     Returns:
-        True if within trading hours, False otherwise
+        True if current time matches scheduled time, False otherwise
     """
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
-    current_hour = now.hour
+    current_time = (now.hour, now.minute)
     
-    # Trading hours: 9 AM to 10 PM IST
-    return TRADING_START_HOUR <= current_hour <= TRADING_END_HOUR
+    # Check if current time matches any scheduled time (with 1-minute tolerance)
+    for hour, minute in TRADING_SCHEDULE_TIMES:
+        if now.hour == hour and abs(now.minute - minute) <= 1:
+            return True
+    return False
 
 
 def job_wrapper():
-    """Wrapper function to check trading hours before running the bot."""
-    if is_within_trading_hours():
+    """Wrapper function to check scheduled time before running the bot."""
+    if is_scheduled_time():
         run_trading_bot()
     else:
-        logger.info("Outside trading hours (9 AM - 10 PM IST). Skipping execution.")
+        logger.debug("Not a scheduled execution time. Skipping.")
 
 
 def main():
     """Main entry point for the bot."""
     logger.info("Trading Bot Started")
-    logger.info("Running hourly from 9:00 AM to 10:00 PM IST")
+    logger.info("Running every 2 hours: 9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM IST")
     logger.info("Press Ctrl+C to stop")
     
-    # Schedule the job to run every hour
-    schedule.every().hour.at(":00").do(job_wrapper)
+    # Schedule the job to run at specific times
+    for hour, minute in TRADING_SCHEDULE_TIMES:
+        schedule.every().day.at(f"{hour:02d}:{minute:02d}").do(run_trading_bot)
+        logger.info(f"Scheduled execution at {hour:02d}:{minute:02d} IST")
     
-    # Run immediately on startup if within trading hours
-    if is_within_trading_hours():
+    # Run immediately on startup if at scheduled time
+    if is_scheduled_time():
         logger.info("Running initial execution...")
         run_trading_bot()
     
@@ -157,7 +186,7 @@ def main():
     try:
         while True:
             schedule.run_pending()
-            time.sleep(60)  # Check every minute
+            time.sleep(30)  # Check every 30 seconds
     except KeyboardInterrupt:
         logger.info("Trading bot stopped by user")
     except Exception as e:
