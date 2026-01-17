@@ -175,7 +175,7 @@ Scheduled bot execution at 11:30 IST
 ## Updates and Changes
 
 ### To modify schedule times:
-Edit the `execution_times` list in `main.py` (line 317-325)
+Edit the `execution_times` list in `main.py` (lines 331-339)
 
 ### To change timeframe:
 Modify the `timeframe='2h'` parameter in the `fetch_ohlcv` function
