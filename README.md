@@ -1,14 +1,14 @@
 # Trading BH Bot
 
-This repository contains the code for creating a crypto futures trading bot that scans for setups based on Bollinger Band (BB) and Heikin Ashi (HA) indicators on the 1-hour timeframe.
+This repository contains the code for creating a crypto futures trading bot that scans for setups based on Bollinger Band (BB) and Heikin Ashi (HA) indicators on the 2-hour timeframe.
 
 The bot will:
 
-1. Fetch OHLC data from the CoinDCX API for specific trading pairs defined in the `pairs.csv` file.
+1. Fetch OHLC data from the Binance API for specific trading pairs defined in the `binance pairs.csv` file.
 2. Compute Bollinger Bands and Heikin Ashi candles.
 3. Identify buy and sell signals based on the provided strategy.
 4. Notify signals via Telegram bot messages.
-5. Run from 9:00 AM to 10:00 PM IST every hour.
+5. Run every 2 hours at specific IST times: 9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM.
 6. Provide a backtesting feature for validating the strategy.
 
 ## Installation
@@ -45,8 +45,9 @@ The strategy uses:
 - If the green HA candle (upward candle) touches or crosses the upper Bollinger Band on its body or wick, and the next candle is red (downward HA candle) with 30% body size, a sell signal is generated.
 
 ### Telegram Notifications
-- Signals are sent every hour in the format:
-  - **1Hr BH**:
+- Signals are sent every 2 hours in the format:
+  - **GHTB**
+  - **2Hr BH**:
     - BUY:
       - List of coin names.
     - SELL:
@@ -58,16 +59,16 @@ The strategy uses:
 - Identify Buy/Sell signals accurately as per strategy.
 - Notify signals via Telegram.
 - Create a backtesting utility.
-- Deploy locally to run every hour between 9AM-10PM IST.
+- Deploy locally to run every 2 hours at specific IST times: 9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM.
 
 ## Configuration
-You need to set up your API key, secret key, and Telegram bot token in the `config.py` file.
+You need to set up your Telegram bot tokens and chat IDs in the `config.py` file.
 
 ```python
-COINDCX_API_KEY = "your_coindcx_api_key_here"
-COINDCX_SECRET_KEY = "your_coindcx_secret_key_here"
-TELEGRAM_BOT_TOKEN = "your_telegram_bot_token_here"
-TELEGRAM_CHAT_ID = "your_chat_id_here"
+TELEGRAM_BOT_TOKEN_1 = "your_telegram_bot_token_here"
+TELEGRAM_CHAT_ID_1 = "your_chat_id_here"
+TELEGRAM_BOT_TOKEN_2 = "your_telegram_bot_token_here"
+TELEGRAM_CHAT_ID_2 = "your_chat_id_here"
 ```
 
 ## Disclaimer
