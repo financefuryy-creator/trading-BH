@@ -32,27 +32,14 @@ class TradingBot:
     def load_pairs(self):
         """Load trading pairs from pairs.csv file"""
         try:
+            pairs = []
             with open('pairs.csv', 'r') as f:
-                content = f.read().strip()
-                # The pairs.csv contains reference to binance pairs.csv
-                if 'binance pairs.csv' in content:
-                    # Try to read binance pairs.csv instead
-                    try:
-                        with open('binance pairs.csv', 'r') as bf:
-                            # Read the timestamp line
-                            bf.readline()
-                            pairs = []
-                            for line in bf:
-                                pair = line.strip()
-                                if pair:
-                                    pairs.append(pair)
-                            return pairs
-                    except FileNotFoundError:
-                        print("Warning: binance pairs.csv not found")
-                        return []
-                else:
-                    pairs = [line.strip() for line in content.split('\n') if line.strip()]
-                    return pairs
+                for line in f:
+                    pair = line.strip()
+                    # Skip empty lines and comments
+                    if pair and not pair.startswith('#'):
+                        pairs.append(pair)
+            return pairs if pairs else ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
         except FileNotFoundError:
             print("Warning: pairs.csv not found, using default pairs")
             return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
@@ -100,7 +87,11 @@ class TradingBot:
         # Calculate body size percentage
         ha_df['ha_body_size'] = abs(ha_df['ha_close'] - ha_df['ha_open'])
         ha_df['ha_full_size'] = ha_df['ha_high'] - ha_df['ha_low']
-        ha_df['ha_body_pct'] = (ha_df['ha_body_size'] / ha_df['ha_full_size']) * 100
+        # Avoid division by zero - set to 0 if candle has no size
+        ha_df['ha_body_pct'] = ha_df.apply(
+            lambda row: (row['ha_body_size'] / row['ha_full_size'] * 100) if row['ha_full_size'] > 0 else 0,
+            axis=1
+        )
         
         return ha_df
     
@@ -197,7 +188,7 @@ class TradingBot:
     async def send_telegram_message(self, message):
         """Send message via Telegram bot"""
         try:
-            if self.telegram_token == 'your_telegram_bot_token_here':
+            if not self.telegram_token or self.telegram_token == 'your_telegram_bot_token_here':
                 print("Telegram token not configured, skipping notification")
                 print(f"Would have sent: {message}")
                 return

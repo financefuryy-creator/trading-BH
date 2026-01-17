@@ -17,6 +17,9 @@ from main import TradingBot
 
 def create_mock_data():
     """Create mock OHLCV data for testing"""
+    # Set seed for reproducible tests
+    np.random.seed(42)
+    
     dates = pd.date_range(start='2024-01-01', periods=100, freq='1h')
     
     # Create realistic price data
