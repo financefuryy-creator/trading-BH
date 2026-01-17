@@ -8,6 +8,9 @@ import pandas as pd
 import numpy as np
 from main import TradingBot
 
+# Test configuration
+RANDOM_SEED = 42  # Seed for reproducible test data
+
 
 class SignalTester:
     """Test class for validating signal generation logic."""
@@ -27,7 +30,7 @@ class SignalTester:
             DataFrame with mock OHLCV data
         """
         # Set seed for reproducible test data
-        np.random.seed(42)
+        np.random.seed(RANDOM_SEED)
         
         # Generate mock data with realistic price movements
         base_price = 100.0

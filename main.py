@@ -21,6 +21,7 @@ TIMEFRAME = '1h'
 BB_PERIOD = 20
 BB_STD = 2
 MIN_BODY_SIZE_PERCENT = 30  # Minimum body size for signal confirmation
+RATE_LIMIT_DELAY = 0.5  # Delay between API calls (seconds)
 
 
 class TradingBot:
@@ -370,7 +371,7 @@ class TradingBot:
         
         for pair in pairs:
             # Add delay to respect rate limits
-            time.sleep(0.5)
+            time.sleep(RATE_LIMIT_DELAY)
             
             result = self.scan_pair(pair)
             
