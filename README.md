@@ -1,15 +1,16 @@
 # Trading BH Bot
 
-This repository contains the code for a Binance trading bot that scans for setups based on Bollinger Band (BB) and Heikin Ashi (HA) indicators on the 1-hour timeframe.
+This repository contains the code for a Binance trading bot that scans for setups based on Bollinger Band (BB) and Heikin Ashi (HA) indicators on the **2-hour timeframe**.
 
 The bot will:
 
-1. Fetch OHLC data from the Binance API for specific trading pairs defined in the `trading_pairs.csv` file.
-2. Compute Bollinger Bands and Heikin Ashi candles.
+1. Fetch OHLC data from the Binance API for specific trading pairs defined in the `pairs.csv` or `trading_pairs.csv` file.
+2. Compute Bollinger Bands and Heikin Ashi candles on 2-hour timeframes.
 3. Identify buy and sell signals based on the provided strategy.
-4. Notify signals via Telegram bot messages to two separate bots.
-5. Run from 9:00 AM to 10:00 PM IST every hour.
-6. Provide a backtesting feature for validating the strategy.
+4. Generate visual verification charts for all detected signals.
+5. Notify signals via Telegram bot messages to two separate bots with "GHTB" header and timestamps.
+6. Run every 2 hours from 9:30 AM to 9:30 PM IST (7 times daily).
+7. Provide a backtesting feature for validating the strategy.
 
 ## Installation
 
@@ -27,28 +28,34 @@ The bot will:
 
 ## Execution Schedule
 
-The bot executes automatically at **30 minutes past every hour** from **9:30 AM to 10:30 PM IST**:
+The bot executes automatically every **2 hours** from **9:30 AM to 9:30 PM IST**:
 
 ```
-9:30 AM, 10:30 AM, 11:30 AM, 12:30 PM, 1:30 PM, 2:30 PM, 3:30 PM,
-4:30 PM, 5:30 PM, 6:30 PM, 7:30 PM, 8:30 PM, 9:30 PM, 10:30 PM
+9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, 9:30 PM
 ```
 
-- **Total executions:** 14 times per day
+- **Total executions:** 7 times per day
 - **Timezone:** IST (India Standard Time, UTC+5:30)
-- **Pattern:** Every hour at :30 minutes
+- **Pattern:** Every 2 hours starting at 9:30 AM
+- **Timeframe:** 2-hour candles for analysis
 
 The bot uses the `schedule` library with proper IST timezone handling to ensure accurate execution times. **Note:** The system timezone should be configured to IST for the schedule to work correctly.
 
 ## How It Works
 
-The strategy uses:
+The strategy uses **2-hour timeframe** for all analysis:
 
 - **Bollinger Bands**:
   - Default settings of 20-period moving average with a 2-standard deviations multiplier.
+  - Calculated on 2-hour candles.
   
 - **Heikin Ashi Candles**:
-  - Calculated dynamically using OHLC data for accurate results.
+  - Calculated dynamically using 2-hour OHLC data for accurate results.
+
+- **Visual Verification**:
+  - Automatic chart generation for all detected signals.
+  - Charts show Heikin-Ashi candles with Bollinger Bands overlaid.
+  - Saved to temporary directory for manual verification.
 
 ### Signal Generation Logic (Strict Implementation)
 
@@ -76,28 +83,36 @@ The strategy uses:
 
 ### Telegram Notifications
 
-Signals are sent every hour to both configured Telegram bots in the format:
+Signals are sent every 2 hours to both configured Telegram bots in the format:
 
 ```
-*1Hr BH*
+*GHTB - 2Hr BH*
+2026-01-17 09:30 AM IST
 
-### Telegram Notifications
-- Signals are sent every hour in the format:
-  - **1Hr BH**:
-    - BUY:
-      - List of coin names.
-    - SELL:
-      - List of coin names.
+*BUY*:
+  • BTC
+  • ETH
+
+*SELL*:
+  • ADA
+  • SOL
+```
+
+- **GHTB**: Included in every notification header
+- **Timestamp**: Accurate IST timestamp with each message
+- **Coin names**: Simplified format (e.g., BTC instead of BTC/USDT)
 
 ## Modules
 
 The bot consists of the following modules:
 
-- **`main.py`**: Main bot script with hourly scheduling (9 AM - 10 PM IST)
-- **`data_fetcher.py`**: Fetches OHLC data from Binance API using CCXT
+- **`main.py`**: Main bot script with 2-hour scheduling (9:30 AM - 9:30 PM IST, every 2 hours)
+- **`data_fetcher.py`**: Fetches OHLC data from Binance API using CCXT (2-hour timeframe)
 - **`indicators.py`**: Calculates Bollinger Bands and Heikin-Ashi candles
 - **`signals.py`**: Generates buy/sell signals based on the strategy
-- **`telegram_notifier.py`**: Sends notifications to multiple Telegram bots
+- **`telegram_notifier.py`**: Sends notifications to multiple Telegram bots with GHTB header and timestamps
+- **`visual_verification.py`**: Generates verification charts for signals with HA candles and BB
+- **`visualize_signals.py`**: Manual visualization tool for signal validation (2-hour timeframe)
 - **`backtesting.py`**: Backtesting engine for strategy validation
 - **`run_backtest.py`**: Utility script for running backtests
 - **`config.py`**: Configuration file with Telegram credentials
@@ -110,10 +125,13 @@ python main.py
 ```
 
 The bot will:
-- Run immediately if within trading hours (9 AM - 10 PM IST)
-- Schedule hourly execution at the top of each hour
+- Run immediately if at scheduled time (9:30 AM, 11:30 AM, 1:30 PM, 3:30 PM, 5:30 PM, 7:30 PM, or 9:30 PM IST)
+- Schedule execution at each 2-hour interval
+- Fetch 2-hour OHLC data from Binance
+- Generate signals based on 2-hour timeframe analysis
+- Create visual verification charts for all signals
 - Log all activities to `trading_bot.log` and console
-- Send signals to both configured Telegram bots
+- Send signals to both configured Telegram bots with GHTB header and timestamps
 
 ## Backtesting
 
@@ -151,17 +169,28 @@ TELEGRAM_CHAT_ID_2 = '7650632969'
 
 ## Trading Pairs
 
-Edit `trading_pairs.csv` to customize the trading pairs:
+Edit `pairs.csv` or `trading_pairs.csv` to customize the trading pairs:
 
 ```csv
 symbol
 BTCUSDT
 ETHUSDT
 BNBUSDT
-...
+SOLUSDT
+XRPUSDT
+ADAUSDT
+DOGEUSDT
+AVAXUSDT
+DOTUSDT
+MATICUSDT
+LINKUSDT
+UNIUSDT
+LTCUSDT
+ATOMUSDT
+ETCUSDT
 ```
 
-The bot will automatically convert symbols to CCXT format (e.g., `BTCUSDT` → `BTC/USDT`).
+The bot will automatically convert symbols to CCXT format (e.g., `BTCUSDT` → `BTC/USDT`). All pairs in the CSV file will be scanned during each execution.
 
 ## Error Handling
 

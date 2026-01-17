@@ -24,9 +24,9 @@ class SignalVisualizer:
     def __init__(self):
         self.exchange = ccxt.binance({
             'enableRateLimit': True,
-            'options': {'defaultType': 'future'}
+            'options': {'defaultType': 'spot'}
         })
-        self.timeframe = '1h'
+        self.timeframe = '2h'
         self.bb_period = 20
         self.bb_std = 2
     
@@ -168,7 +168,7 @@ class SignalVisualizer:
         # Formatting
         ax.set_xlabel('Candle Index', fontsize=12)
         ax.set_ylabel('Price', fontsize=12)
-        ax.set_title(f'{symbol} - Heikin-Ashi with Bollinger Bands (1h)\nBuy: {len(buy_signals)}, Sell: {len(sell_signals)}',
+        ax.set_title(f'{symbol} - Heikin-Ashi with Bollinger Bands (2h)\nBuy: {len(buy_signals)}, Sell: {len(sell_signals)}',
                     fontsize=14, fontweight='bold')
         ax.legend(loc='upper left')
         ax.grid(True, alpha=0.3)

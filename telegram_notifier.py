@@ -5,6 +5,8 @@ import logging
 from telegram import Bot
 from telegram.error import TelegramError
 import asyncio
+from datetime import datetime
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +74,12 @@ class TelegramNotifier:
         Returns:
             Formatted message string
         """
-        message = "*1Hr BH*:\n\n"
+        # Get current IST timestamp
+        ist = pytz.timezone('Asia/Kolkata')
+        current_time = datetime.now(ist).strftime('%Y-%m-%d %I:%M %p IST')
+        
+        message = "*GHTB - 2Hr BH*\n"
+        message += f"_{current_time}_\n\n"
         
         # Format BUY signals
         message += "*BUY*:\n"
